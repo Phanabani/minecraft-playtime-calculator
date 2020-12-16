@@ -10,6 +10,7 @@ from tkinter import *
 from tkinter.colorchooser import *
 from tkinter.scrolledtext import ScrolledText
 import tkinter.ttk as ttk
+from typing import *
 # I import matplotlib in the module_not_found if it is not found otherwise in the matplotlib when building the gui we will see how that goes
 
 
@@ -28,6 +29,8 @@ class MinecraftLogsAnalyzerUI:
     log_text_color = '#2C2F33'
     font = 'Helvetica 10'
 
+    log: ScrolledText
+
     def __init__(self):
         self.root = Tk()
         self.csv_data = {}
@@ -40,7 +43,11 @@ class MinecraftLogsAnalyzerUI:
             plt = 0
             start_new_thread(module_not_found, ())
 
-    def pack(self):
+        self.scan_mode = IntVar(None, ScanMode.AUTOMATIC)
+        self.path_input = StringVar()
+        self._pack()
+
+    def _pack(self):
         root = self.root
         bg = self.background_color
         fg = self.foreground_color
@@ -53,12 +60,12 @@ class MinecraftLogsAnalyzerUI:
         frame.pack()
 
         # mode selection
-        modeText = Message(
+        mode_text = Message(
             frame, text="Choose scan mode:", bg=bg, fg=fg,
             relief="groove", font=font
         )
-        modeText.config(width=120)
-        modeText.pack()
+        mode_text.config(width=120)
+        mode_text.pack()
 
         s = ttk.Style()  # Creating style element
         s.configure(
@@ -68,7 +75,6 @@ class MinecraftLogsAnalyzerUI:
             font=font
         )  # You can define colors like this also
 
-        self.scan_mode = IntVar(None, ScanMode.AUTOMATIC)
         mode1 = ttk.Radiobutton(
             frame, text="Automatic    ", variable=self.scan_mode,
             value=ScanMode.AUTOMATIC, command=self.change_mode,
@@ -91,66 +97,65 @@ class MinecraftLogsAnalyzerUI:
         Message(frame, text="", bg="#23272A").pack()
 
         # Path input
-        pathText = Message(
+        path_text = Message(
             frame, text="(Separate input with '|')\nEnter path(s) / glob:",
             bg=bg, fg=fg, relief="groove", font=font
         )
-        pathText.config(width=130, justify="center")
-        pathText.pack()
+        path_text.config(width=130, justify="center")
+        path_text.pack()
 
-        pathInput = StringVar()
-        pathInput = Entry(
-            frame, exportselection=0, textvariable=pathInput, state="disabled",
+        path_input = Entry(
+            frame, exportselection=0, textvariable=self.path_input, state="disabled",
             cursor="arrow", bg="white", disabledbackground=bg, width=40,
             font=font
         )
-        pathInput.pack()
+        path_input.pack()
 
         Message(frame, text="", bg=bg).pack()
 
         # run button
-        submitButton = Button(
+        submit_button = Button(
             frame, text="Run", command=self.run,
             cursor="hand2", bg=bg, fg=fg, font=font
         )
-        submitButton.config(width=20)
-        submitButton.pack()
+        submit_button.config(width=20)
+        submit_button.pack()
 
         # graph button
-        graphButton = Button(
+        graph_button = Button(
             frame, text="Create graph", command=self.create_graph,
             cursor="hand2", bg=bg, fg=fg, font=font
         )
-        graphButton.config(width=20)
-        graphButton.pack()
+        graph_button.config(width=20)
+        graph_button.pack()
 
-        colorButton = Button(
+        color_button = Button(
             frame, text='Select Color', command=self.get_color,
             bg=self.graph_color, font=font
         )
-        colorButton.config(width=20)
-        colorButton.pack()
+        color_button.config(width=20)
+        color_button.pack()
 
         # csv button
-        graphButton = Button(
+        graph_button = Button(
             frame, text="Export as csv", command=self.create_csv,
             cursor="hand2", bg=bg, fg=fg, font=font)
-        graphButton.config(width=20)
-        graphButton.pack()
+        graph_button.config(width=20)
+        graph_button.pack()
 
         # output
-        text = ScrolledText(
+        self.log = ScrolledText(
             frame, bg=self.log_text_color, fg="white", font="Helvetica 11"
         )
-        text.config(width=120)
-        text.pack()
+        self.log.config(width=120)
+        self.log.pack()
 
         # exit button
-        stopButton = Button(
+        stop_button = Button(
             frame, text="Stop scanning", command=exit,
             width=20, bg=bg, fg=fg, font=font
         )
-        stopButton.pack()
+        stop_button.pack()
 
     def change_mode(self):
         global scan_mode
