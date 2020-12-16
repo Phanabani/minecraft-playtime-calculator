@@ -1,17 +1,21 @@
 from __future__ import annotations
 from _thread import start_new_thread
-from csv import writer as csv_writher
+from csv import writer as csv_writer
 from datetime import timedelta
 from enum import IntEnum
 from glob import iglob
 import os
 from pathlib import Path
 from tkinter import *
+from tkinter import filedialog
 from tkinter.colorchooser import *
 from tkinter.scrolledtext import ScrolledText
 import tkinter.ttk as ttk
 from typing import *
-# I import matplotlib in the module_not_found if it is not found otherwise in the matplotlib when building the gui we will see how that goes
+
+from matplotlib import pyplot as plt
+
+from . import minecraft_logs as mc_logs
 
 
 class ScanMode(IntEnum):
@@ -23,7 +27,7 @@ class ScanMode(IntEnum):
 class MinecraftLogsAnalyzerUI:
 
     background_color = '#23272A'
-    outline_color= '#2C2F33'
+    outline_color = '#2C2F33'
     foreground_color = 'white'
     graph_color = '#18aaff'
     log_text_color = '#2C2F33'
@@ -36,16 +40,12 @@ class MinecraftLogsAnalyzerUI:
         self.csv_data = {}
 
         self.graph_data_collection = {}
-        self.stop_scan = False
-        try:
-            from matplotlib import pyplot as plt
-        except ImportError:
-            plt = 0
-            start_new_thread(module_not_found, ())
+        self.total_play_time = None
 
         self.scan_mode = IntVar(None, ScanMode.AUTOMATIC)
-        self.path_input = StringVar()
+        self.path = StringVar()
         self._pack()
+        self.root.mainloop()
 
     def _pack(self):
         root = self.root
@@ -73,7 +73,7 @@ class MinecraftLogsAnalyzerUI:
             background=bg,  # Setting background to our specified color above
             foreground=fg,
             font=font
-        )  # You can define colors like this also
+        )
 
         mode1 = ttk.Radiobutton(
             frame, text="Automatic    ", variable=self.scan_mode,
@@ -104,12 +104,12 @@ class MinecraftLogsAnalyzerUI:
         path_text.config(width=130, justify="center")
         path_text.pack()
 
-        path_input = Entry(
-            frame, exportselection=0, textvariable=self.path_input, state="disabled",
+        self.path_input = Entry(
+            frame, exportselection=0, textvariable=self.path, state="disabled",
             cursor="arrow", bg="white", disabledbackground=bg, width=40,
             font=font
         )
-        path_input.pack()
+        self.path_input.pack()
 
         Message(frame, text="", bg=bg).pack()
 
@@ -129,12 +129,12 @@ class MinecraftLogsAnalyzerUI:
         graph_button.config(width=20)
         graph_button.pack()
 
-        color_button = Button(
+        self.color_button = Button(
             frame, text='Select Color', command=self.get_color,
             bg=self.graph_color, font=font
         )
-        color_button.config(width=20)
-        color_button.pack()
+        self.color_button.config(width=20)
+        self.color_button.pack()
 
         # csv button
         graph_button = Button(
@@ -158,154 +158,136 @@ class MinecraftLogsAnalyzerUI:
         stop_button.pack()
 
     def change_mode(self):
-        global scan_mode
-        scan_mode = mode.get()
-        if scan_mode == 1:
-            pathInput.config(state='disabled', cursor="arrow")
+        scan_mode = self.scan_mode.get()
+        if scan_mode == ScanMode.MANUAL:
+            self.path_input.config(state='disabled', cursor="arrow")
         else:
-            pathInput.config(state='normal', cursor="hand2")
-        insert("Changed mode to "+mode_dict[scan_mode])
+            self.path_input.config(state='normal', cursor="hand2")
+        self.insert(f"Changed mode to {ScanMode(scan_mode)._name_.lowercase()}")
         # probably put path detect here
 
-    def insert(string_input, newline=True, error=False, scroll=True):  # to get text to output field
+    def insert(self, string_input: Any, newline=True, error=False, scroll=True):  # to get text to output field
         string_input = str(string_input)
-        if error == True:
-            text.insert(END, "** ")
-            text.insert(END, string_input.upper())
-            text.insert(END, " **")
-        if error == False:
-            text.insert(END, string_input)
-        if newline == True:
-            text.insert(END, "\n")
+        log = self.log
+
+        if error:
+            log.insert(END, "** ")
+            log.insert(END, string_input.upper())
+            log.insert(END, " **")
+        else:
+            log.insert(END, string_input)
+        if newline:
+            log.insert(END, "\n")
         if scroll:
-            text.see(END)
-        return
+            log.see(END)
 
-
-    data_total_play_time = 0
-
-
-    def count_playtimes_tread(paths,mode):
-        global data_total_play_time
+    def count_playtimes_thread(self, paths, mode):
         total_time = timedelta()
         if mode == 1:
             paths = Path(paths)
-            total_time += count_playtime(paths,print_files='file')
+            total_time += mc_logs.count_playtime(paths, print_files='file')
         if mode == 2:
             for path in paths:
-                total_time += count_playtime(path,print_files='full' if len(paths) > 1 else 'file')
+                total_time += mc_logs.count_playtime(path, print_files='full' if len(paths) > 1 else 'file')
         if mode == 3:
             for path in paths:
                 if path.is_dir():
-                    total_time += count_playtime(path,print_files='full')
-        insert("\nTotal Time:"+" "+str(total_time))
-        data_total_play_time = total_time
+                    total_time += mc_logs.count_playtime(path, print_files='full')
+        self.insert(f"\nTotal Time: {total_time}")
+        self.total_play_time = total_time
 
-    def run():
-        global graph_data_collection,csv_data
-        csv_data = {}
-        graph_data_collection = {}
-        insert("Starting log scanning...")
-        if scan_mode == 0: # no input clicked yet
-            insert("No mode selected, please select mode!")
-            return
-        elif scan_mode == 1:
-            default_logs_path = Path('C:/Users', os.getlogin(),
-                                     'AppData/Roaming/.minecraft', 'logs')
+    def run(self):
+        self.csv_data = {}
+        self.graph_data_collection = {}
+        self.insert("Starting log scanning...")
+
+        if self.scan_mode == ScanMode.AUTOMATIC:
+            default_logs_path = Path(
+                'C:/Users', os.getlogin(), 'AppData/Roaming/.minecraft', 'logs'
+            )
 
             if default_logs_path.exists():
-
-                start_new_thread(count_playtimes_tread, tuple(), {"paths": default_logs_path, "mode": scan_mode})
+                start_new_thread(
+                    self.count_playtimes_thread, (),
+                    {"paths": default_logs_path, "mode": self.scan_mode}
+                )
                 return
             # say that it did not exist
             else:
-                insert("ERROR: Could not automatically locate your .minecraft/logs folder")
+                self.insert("ERROR: Could not automatically locate your .minecraft/logs folder")
 
-        elif scan_mode == 2: # files
-            paths_list = pathInput.get().split("|")
+        elif self.scan_mode == ScanMode.MANUAL:
+            paths_list = self.path_input.get().split("|")
             for path in paths_list:
                 path = Path(path)
-                if path.exists() == False:
-                    insert("ERROR: One of your specified paths does not exit:")
-                    insert(path, error=True)
+                if path.exists() is False:
+                    self.insert("ERROR: One of your specified paths does not exit:")
+                    self.insert(path, error=True)
                     return
             paths_list_ready = [Path(path) for path in paths_list]
-            start_new_thread(count_playtimes_tread, tuple(), {"paths": paths_list_ready, "mode": scan_mode})
+            start_new_thread(
+                self.count_playtimes_thread, (),
+                {"paths": paths_list_ready, "mode": self.scan_mode}
+            )
 
-        elif scan_mode == 3: # glob
-            globs = pathInput.get().split("|")
+        elif self.scan_mode == ScanMode.GLOB:
+            globs = self.path_input.get().split("|")
             glob_list = []
             for _glob in globs:
-                for paths in iglob(_glob+"",recursive=True):
+                for paths in iglob(_glob+"", recursive=True):
                     glob_list.append(Path(paths))
             for path in glob_list:
-                if path.exists() == False:
-                    insert("ERROR: One of your specified paths does not exit:")
-                    insert(str(path), error=True)
+                if not path.exists():
+                    self.insert("ERROR: One of your specified paths does not exit:")
+                    self.insert(str(path), error=True)
                     return
 
-            start_new_thread(count_playtimes_tread, tuple(), {"paths":glob_list,"mode":scan_mode})
+            start_new_thread(
+                self.count_playtimes_thread, (),
+                {"paths": glob_list, "mode": self.scan_mode}
+            )
 
-
-    def exit():
-        global stop_scan
-        stop_scan = True
-        insert("Stopping scan...")
+    def exit(self):
+        self.insert("Stopping scan...")
         return
 
-
-    def create_graph():
-        global plt
+    def create_graph(self):
         try:
-            if graph_data_collection == {}:
-                insert("Not enough data to create a graph, one full month is needed")
+            if self.graph_data_collection == {}:
+                self.insert("Not enough data to create a graph, one full month is needed")
                 return
-            data_list_dates = [dates for dates in graph_data_collection]
-            data_list_hour = [hours[1] for hours in graph_data_collection.items()]
-            plt.bar(data_list_dates, data_list_hour,color=graph_color)
+            data_list_dates = list(self.graph_data_collection.keys())
+            data_list_hour = list(self.graph_data_collection.values())
+            plt.bar(data_list_dates, data_list_hour, color=self.graph_color)
 
             plt.xticks(rotation='vertical')
 
             plt.xlabel("Months")
             plt.ylabel("Hours")
-            plt.title("Total playtime:\n" + str(data_total_play_time))
+            plt.title(f"Total playtime:\n{self.total_play_time}")
             plt.draw()
             plt.show()
-        except Exception as E:
-            insert("An error ocured while creating the graph: "+str(E),error=True)
-            insert("Try closing and opening the program\nMake sure that you have matplotlib installed!")
+        except Exception:
+            self.insert("An error ocured while creating the graph: ", error=True)
+            self.insert("Try closing and opening the program\n"
+                        "Make sure that you have matplotlib installed!")
 
-
-    def module_not_found():
-        global plt
-        if messagebox.askokcancel("Could not import Matplotlib module",'It looks like you do not have the matplotlib module installed\nWithout this module you can not make graphs\nInputing *pip install matplotlib* into the cmd will install it\n\nYou can also auto install by clicking ok'):
-            insert("Attempting to install matplotlib...")
-            os.system("pip install --user matplotlib")
-        try:
-            from matplotlib import pyplot as plt
-            insert("Succesfully installed matplotlib!")
-
-        except Exception as error:
-            insert("Something may have gone wrong "+str(error))
-
-
-    def get_color():
-        global graph_color
+    def get_color(self):
         color = askcolor()
-        graph_color = color[1]
-        colorButton.config(bg=graph_color)
-        insert("Color changed to "+graph_color)
+        self.graph_color = color[1]
+        self.color_button.config(bg=self.graph_color)
+        self.insert(f"Color changed to {self.graph_color}")
 
-
-    def create_csv():
-        if len(csv_data) != 0:
-            filename = filedialog.asksaveasfilename(initialdir="/desktop", title="Save file:",initialfile="minecraft_playtime.csv",
-                                                    filetypes=(("csv files", "*.csv"), ("all files", "*.*")))
-            with open(filename, newline='',mode="w+") as csvfile:
-                writer = csv_writher(csvfile,delimiter=',')
-                writer.writerow(["Day","Hours"])
-                writer.writerows(csv_data.items())
+    def create_csv(self):
+        if len(self.csv_data) != 0:
+            filename = filedialog.asksaveasfilename(
+                initialdir="/desktop", title="Save file:",
+                initialfile="minecraft_playtime.csv",
+                filetypes=(("csv files", "*.csv"), ("all files", "*.*"))
+            )
+            with open(filename, newline='', mode="w+") as csvfile:
+                writer = csv_writer(csvfile, delimiter=',')
+                writer.writerow(["Day", "Hours"])
+                writer.writerows(self.csv_data.items())
         else:
-            insert("Not enough data to create a csv file, make sure to start a scan first")
-
-    root.mainloop()
+            self.insert("Not enough data to create a csv file, make sure to start a scan first")
