@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import *
 
 log_name_pattern = re.compile(r'\d{4}-\d\d-\d\d-\d+\.log(?:\.gz)?')
+time_pattern = re.compile(
+    r'\[(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})\]', re.I
+)
+time_pattern_simple = re.compile(r'\d{2}:\d{2}:\d{2}')
 
 def read_backward_until(stream, delimiter, buf_size=32, stop_after=1,
                         trim_start=0):
@@ -94,10 +98,6 @@ def count_playtime(path, count=-1, print_files='file'):
     global graph_data_collection,stop_scan,total_data_time,data_total_play_time,csv_data
     current_month = ""
     total_data_time = 0
-    time_pattern = re.compile(
-        r'\[(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})\]', re.I
-    )
-    time_pattern_simple = re.compile(r'\d{2}:\d{2}:\d{2}')
     total_time = timedelta()
 
     for log in iter_logs(path):
