@@ -13,27 +13,27 @@ time_pattern = re.compile(
 )
 time_pattern_simple = re.compile(r'\d{2}:\d{2}:\d{2}')
 
-def read_backward_until(stream, delimiter, buf_size=32, stop_after=1,
-                        trim_start=0):
+
+def read_backward_until(
+        stream: TextIO, delimiter: Union[str, Pattern], buf_size: int = 32,
+        stop_after: int = 1, trim_start: int = 0
+):
     """
-    `stream` (TextIOBase): Stream to read from
-    `delimiter` (str|re._pattern_type): Delimeter marking when to stop reading
-    `buf_size` (int): Number of characters to read/store in buffer while
-                      progressing backwards. Ensure this is greater than or
-                      equal to the intended length of `delimiter` so that the
-                      entire delimiter can be detected
-    `stop_after` (int): Return the result after detecting this many delimiters
-    `trim_start` (int): If not 0, this many characters will be skipped
-                        from the beginning of the output (to return only
-                        what comes after delimiter, for instance)
+    :param stream: stream to read from
+    :param delimiter: delimiter marking when to stop reading
+    :param buf_size: number of characters to read/store in buffer while
+        progressing backwards. Ensure this is greater than or equal to the
+        intended length of `delimiter` so that the entire delimiter can be
+        detected
+    :param stop_after: return the result after detecting this many delimiters
+    :param trim_start: If not 0, this many characters will be skipped from the
+        beginning of the output (to return only what comes after delimiter, for
+        instance)
     """
     if not isinstance(stream, TextIOBase):
-        raise TypeError('Expected type of `stream` to be TextIOBase, got %s'
-                        % type(stream))
-    if not (isinstance(delimiter, str)
-            or isinstance(delimiter, Pattern)):
-        raise TypeError('Expected type of `delimiter` to be str or '
-                        'regex pattern, got %s' % type(delimiter))
+        raise TypeError("stream must be of type TextIO")
+    if not isinstance(delimiter, (str, Pattern)):
+        raise TypeError("delimiter must be of type str or Pattern")
 
     stop_after -= 1
     original_pos = stream.tell()
@@ -74,7 +74,7 @@ def read_backward_until(stream, delimiter, buf_size=32, stop_after=1,
     return None
 
 
-def read_last_line(stream):
+def read_last_line(stream: TextIO):
     return read_backward_until(stream, os.linesep, stop_after=2, trim_start=2)
 
 
@@ -82,8 +82,7 @@ def iter_logs(path: Union[str, Path]) -> Generator[TextIO]:
     if isinstance(path, str):
         path = Path(path)
     elif not isinstance(path, Path):
-        raise TypeError('Expected type of `path` to be str or Path, got %s'
-                        % type(path))
+        raise TypeError("path must be of type str or Path.")
     open_methods = {'.log': open, '.gz': gzip.open}
 
     for file in path.iterdir():
@@ -94,8 +93,7 @@ def iter_logs(path: Union[str, Path]) -> Generator[TextIO]:
         )
 
 
-def count_playtime(path, count=-1, print_files='file'):
-    global graph_data_collection,stop_scan,total_data_time,data_total_play_time,csv_data
+def count_playtime(path: Union[str, Path], count: int = -1, print_files='file'):
     current_month = ""
     total_data_time = 0
     total_time = timedelta()
