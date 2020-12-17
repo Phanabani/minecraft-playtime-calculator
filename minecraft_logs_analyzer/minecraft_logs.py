@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import *
 
+log_name_pattern = re.compile(r'\d{4}-\d\d-\d\d-\d+\.log(?:\.gz)?')
 
 def read_backward_until(stream, delimiter, buf_size=32, stop_after=1,
                         trim_start=0):
@@ -82,9 +83,7 @@ def iter_logs(path: Union[str, Path]) -> Generator[TextIO]:
     open_methods = {'.log': open, '.gz': gzip.open}
 
     for file in path.iterdir():
-        if file.suffix not in open_methods:
-            continue
-        elif not file.name.startswith('20'):
+        if not log_name_pattern.fullmatch(file.name):
             continue
         yield open_methods[file.suffix](
             file, 'rt', encoding='ansi', errors='replace', newline=''
