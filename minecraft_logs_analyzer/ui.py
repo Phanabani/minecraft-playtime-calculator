@@ -68,7 +68,6 @@ class MinecraftLogsAnalyzerUI:
         self.path = StringVar()
         self._pack()
         self._init_logging()
-        self.root.mainloop()
 
     def _init_logging(self):
         self._log_handler = TkinterScrolledTextLogHandler(
@@ -146,7 +145,7 @@ class MinecraftLogsAnalyzerUI:
 
         # run button
         submit_button = Button(
-            frame, text="Run", command=self.run,
+            frame, text="Run", command=self.scan_logs,
             cursor="hand2", bg=bg, fg=fg, font=font
         )
         submit_button.config(width=20)
@@ -188,6 +187,9 @@ class MinecraftLogsAnalyzerUI:
         )
         stop_button.pack()
 
+    def start(self):
+        self.root.mainloop()
+
     @property
     def log_handler(self):
         return self._log_handler
@@ -217,7 +219,7 @@ class MinecraftLogsAnalyzerUI:
         logger.info(f"Total Time: {total_time}")
         self.total_play_time = total_time
 
-    def run(self):
+    def scan_logs(self):
         self.csv_data = {}
         self.graph_data_collection = {}
         logger.info("Starting log scanning...")
