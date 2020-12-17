@@ -201,15 +201,16 @@ class MinecraftLogsAnalyzerUI:
         logger.info(f"Changed mode to {ScanMode(scan_mode)._name_.lower()}")
         # probably put path detect here
 
-    def count_playtimes_thread(self, paths, mode):
+    def count_playtimes_thread(self, paths: Union[Path, List[Path]],
+                               mode: ScanMode):
         total_time = timedelta()
-        if mode == 1:
+        if mode == ScanMode.AUTOMATIC:
             paths = Path(paths)
             total_time += mc_logs.count_playtime(paths, print_files='file')
-        if mode == 2:
+        if mode == ScanMode.MANUAL:
             for path in paths:
                 total_time += mc_logs.count_playtime(path, print_files='full' if len(paths) > 1 else 'file')
-        if mode == 3:
+        if mode == ScanMode.GLOB:
             for path in paths:
                 if path.is_dir():
                     total_time += mc_logs.count_playtime(path, print_files='full')
