@@ -20,6 +20,8 @@ from . import minecraft_logs as mc_logs
 
 logger = logging.getLogger('minecraft_logs_analyzer.ui')
 
+LOG_FORMAT = '%(asctime)s|%(levelname)s|%(name)s|%(message)s'
+
 
 class ScanMode(IntEnum):
     AUTOMATIC = 0
@@ -65,8 +67,16 @@ class MinecraftLogsAnalyzerUI:
         self.scan_mode = IntVar(None, ScanMode.AUTOMATIC)
         self.path = StringVar()
         self._pack()
-        self._log_handler = TkinterScrolledTextLogHandler(self.log_widget)
+        self._init_logging()
         self.root.mainloop()
+
+    def _init_logging(self):
+        self._log_handler = TkinterScrolledTextLogHandler(
+            self.log_widget, logging.INFO
+        )
+        self._log_handler.formatter = logging.Formatter()
+        self._log_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        logger.addHandler(self._log_handler)
 
     def _pack(self):
         root = self.root
