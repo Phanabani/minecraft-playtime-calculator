@@ -82,7 +82,8 @@ def read_backward_until(
 
 
 def read_last_line(stream: TextIO):
-    return read_backward_until(stream, os.linesep, stop_after=2, trim_start=2)
+    return read_backward_until(stream, os.linesep, stop_after=2,
+                               trim_start=len(os.linesep))
 
 
 def iter_logs(path: Union[str, Path]) -> Generator[TextIO]:
