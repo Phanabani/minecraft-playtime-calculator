@@ -1,5 +1,5 @@
 from __future__ import annotations
-from _thread import start_new_thread
+import asyncio
 from csv import writer as csv_writer
 from datetime import timedelta
 from enum import IntEnum
@@ -206,16 +206,18 @@ class MinecraftLogsAnalyzerUI:
     def count_playtimes_thread(self, paths: Union[Path, List[Path]],
                                mode: ScanMode):
         total_time = timedelta()
+
         if mode == ScanMode.AUTOMATIC:
             paths = Path(paths)
             total_time += mc_logs.count_playtime(paths, print_files='file')
-        if mode == ScanMode.MANUAL:
+        elif mode == ScanMode.MANUAL:
             for path in paths:
                 total_time += mc_logs.count_playtime(path, print_files='full' if len(paths) > 1 else 'file')
-        if mode == ScanMode.GLOB:
+        elif mode == ScanMode.GLOB:
             for path in paths:
                 if path.is_dir():
                     total_time += mc_logs.count_playtime(path, print_files='full')
+
         logger.info(f"Total Time: {total_time}")
         self.total_play_time = total_time
 

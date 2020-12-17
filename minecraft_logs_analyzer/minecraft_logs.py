@@ -58,7 +58,7 @@ def read_backward_until(
         buf = stream.read(buf_size) + buf[:buf_size]
 
         if isinstance(delimiter, str):
-            delim_pos = buf.find('\n')
+            delim_pos = buf.find(delimiter)
         else:
             delim_pos = delimiter.search(buf)
             delim_pos = delim_pos.start() if delim_pos else -1
