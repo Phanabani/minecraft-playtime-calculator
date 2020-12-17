@@ -4,6 +4,7 @@ from csv import writer as csv_writer
 from datetime import timedelta
 from enum import IntEnum
 from glob import iglob
+import logging
 import os
 from pathlib import Path
 from tkinter import *
@@ -17,11 +18,30 @@ from matplotlib import pyplot as plt
 
 from . import minecraft_logs as mc_logs
 
+logger = logging.getLogger('minecraft_logs_analyzer.ui')
+
 
 class ScanMode(IntEnum):
     AUTOMATIC = 0
     MANUAL = 1
     GLOB = 2
+
+
+class TkinterScrolledTextLogHandler(logging.Handler):
+
+    def __init__(self, scrolled_text: ScrolledText,
+                 level: int = logging.NOTSET, *, scroll=True):
+        super().__init__(level=level)
+        self._scrolled_text = scrolled_text
+        self.scroll = scroll
+
+    def emit(self, record: logging.LogRecord):
+        if not isinstance(self._scrolled_text, ScrolledText):
+            return
+        formatted = self.format(record)
+        self._scrolled_text.insert(END, formatted)
+        if self.scroll:
+            self._scrolled_text.see(END)
 
 
 class MinecraftLogsAnalyzerUI:
@@ -33,7 +53,7 @@ class MinecraftLogsAnalyzerUI:
     log_text_color = '#2C2F33'
     font = 'Helvetica 10'
 
-    log: ScrolledText
+    log_widget: ScrolledText
 
     def __init__(self):
         self.root = Tk()
@@ -45,6 +65,7 @@ class MinecraftLogsAnalyzerUI:
         self.scan_mode = IntVar(None, ScanMode.AUTOMATIC)
         self.path = StringVar()
         self._pack()
+        self._log_handler = TkinterScrolledTextLogHandler(self.log_widget)
         self.root.mainloop()
 
     def _pack(self):
@@ -144,11 +165,11 @@ class MinecraftLogsAnalyzerUI:
         graph_button.pack()
 
         # output
-        self.log = ScrolledText(
+        self.log_widget = ScrolledText(
             frame, bg=self.log_text_color, fg="white", font="Helvetica 11"
         )
-        self.log.config(width=120)
-        self.log.pack()
+        self.log_widget.config(width=120)
+        self.log_widget.pack()
 
         # exit button
         stop_button = Button(
@@ -156,6 +177,10 @@ class MinecraftLogsAnalyzerUI:
             width=20, bg=bg, fg=fg, font=font
         )
         stop_button.pack()
+
+    @property
+    def log_handler(self):
+        return self._log_handler
 
     def change_mode(self):
         scan_mode = self.scan_mode.get()
@@ -168,7 +193,7 @@ class MinecraftLogsAnalyzerUI:
 
     def insert(self, string_input: Any, newline=True, error=False, scroll=True):  # to get text to output field
         string_input = str(string_input)
-        log = self.log
+        log = self.log_widget
 
         if error:
             log.insert(END, "** ")
