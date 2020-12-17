@@ -20,8 +20,11 @@ time_pattern_simple = re.compile(r'\d{2}:\d{2}:\d{2}')
 def read_backward_until(
         stream: TextIO, delimiter: Union[str, Pattern], buf_size: int = 32,
         stop_after: int = 1, trim_start: int = 0
-):
+) -> Optional[str]:
     """
+    Seek backwards until `delimiter` is found, then read and return the rest
+    of the stream.
+
     :param stream: stream to read from
     :param delimiter: delimiter marking when to stop reading
     :param buf_size: number of characters to read/store in buffer while
@@ -32,6 +35,7 @@ def read_backward_until(
     :param trim_start: If not 0, this many characters will be skipped from the
         beginning of the output (to return only what comes after delimiter, for
         instance)
+    :returns: the rest of the stream
     """
     if not isinstance(stream, TextIOBase):
         raise TypeError("stream must be of type TextIO")
