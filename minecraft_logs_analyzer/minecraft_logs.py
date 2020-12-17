@@ -2,10 +2,13 @@ from __future__ import annotations
 from datetime import timedelta
 from io import TextIOBase, SEEK_END
 import gzip
+import logging
 import os
 import re
 from pathlib import Path
 from typing import *
+
+logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
 log_name_pattern = re.compile(r'\d{4}-\d\d-\d\d-\d+\.log(?:\.gz)?')
 time_pattern = re.compile(
@@ -102,7 +105,7 @@ def count_playtime(path: Union[str, Path], count: int = -1, print_files='file'):
         try:
             if stop_scan:
                 stop_scan = False
-                insert("\nTotal Time:" + " " + str(total_time))
+                logger.info(f"Total time: {total_time}")
                 data_total_play_time = total_time
                 return
             if count == 0:
@@ -113,18 +116,19 @@ def count_playtime(path: Union[str, Path], count: int = -1, print_files='file'):
                 start_time = time_pattern.match(log.readline()).groupdict()
                 end_time = time_pattern.match(
                     read_backward_until(log, time_pattern_simple)).groupdict()
-            except AttributeError as e:
+            except AttributeError:
                 # Not a recognized chat log
-                insert("ERROR: {} generated this error: {}".format(Path(log.name).name,e))
+                logger.warning(f"Unrecognized log file format; skipping (file={log.name})")
                 continue
             except EOFError:
-                insert('ERROR: {} may be corrupted -- skipping'.format(Path(log.name).name))
+                logger.warning(f"Log file may be corrupted; skipping (file={log.name})")
                 continue
             except OSError:
-                insert('ERROR: {} may be corrupted or is not gzipped -- skipping'.format(Path(log.name).name))
+                logger.warning(f"Log file may be corrupted; skipping (file={log.name})")
                 continue
             except:
-                insert('ERROR: An error occured while scanning file {} -- skiping')
+                logger.warning(f"Unexpected error while reading log file; skipping (file={log.name})")
+                continue
             start_time = timedelta(
                 hours=int(start_time['hour']),
                 minutes=int(start_time['min']),
@@ -140,9 +144,9 @@ def count_playtime(path: Union[str, Path], count: int = -1, print_files='file'):
             delta = end_time - start_time
             total_time += delta
             if print_files == 'full':
-                insert(str(log.name)+" "+str(delta))
+                logger.info(f"{log.name} {delta}")
             elif print_files == 'file':
-                insert(str(Path(log.name).name)+" "+str(delta))
+                logger.info(f"{Path(log.name).name} {delta}")
             # collect data for csv
             csv_data[str(Path(log.name).name)[:12]] = str(delta)
 

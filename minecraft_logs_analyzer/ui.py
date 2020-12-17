@@ -188,23 +188,8 @@ class MinecraftLogsAnalyzerUI:
             self.path_input.config(state='disabled', cursor="arrow")
         else:
             self.path_input.config(state='normal', cursor="hand2")
-        self.insert(f"Changed mode to {ScanMode(scan_mode)._name_.lowercase()}")
+        logger.info(f"Changed mode to {ScanMode(scan_mode)._name_.lower()}")
         # probably put path detect here
-
-    def insert(self, string_input: Any, newline=True, error=False, scroll=True):  # to get text to output field
-        string_input = str(string_input)
-        log = self.log_widget
-
-        if error:
-            log.insert(END, "** ")
-            log.insert(END, string_input.upper())
-            log.insert(END, " **")
-        else:
-            log.insert(END, string_input)
-        if newline:
-            log.insert(END, "\n")
-        if scroll:
-            log.see(END)
 
     def count_playtimes_thread(self, paths, mode):
         total_time = timedelta()
@@ -218,13 +203,13 @@ class MinecraftLogsAnalyzerUI:
             for path in paths:
                 if path.is_dir():
                     total_time += mc_logs.count_playtime(path, print_files='full')
-        self.insert(f"\nTotal Time: {total_time}")
+        logger.info(f"Total Time: {total_time}")
         self.total_play_time = total_time
 
     def run(self):
         self.csv_data = {}
         self.graph_data_collection = {}
-        self.insert("Starting log scanning...")
+        logger.info("Starting log scanning...")
 
         if self.scan_mode == ScanMode.AUTOMATIC:
             default_logs_path = Path(
@@ -239,15 +224,18 @@ class MinecraftLogsAnalyzerUI:
                 return
             # say that it did not exist
             else:
-                self.insert("ERROR: Could not automatically locate your .minecraft/logs folder")
+                logger.error(
+                    "Could not automatically locate your .minecraft/logs folder"
+                )
 
         elif self.scan_mode == ScanMode.MANUAL:
             paths_list = self.path_input.get().split("|")
             for path in paths_list:
                 path = Path(path)
                 if path.exists() is False:
-                    self.insert("ERROR: One of your specified paths does not exit:")
-                    self.insert(path, error=True)
+                    logger.error(
+                        f"The specified path does not exist: {path}"
+                    )
                     return
             paths_list_ready = [Path(path) for path in paths_list]
             start_new_thread(
@@ -263,8 +251,7 @@ class MinecraftLogsAnalyzerUI:
                     glob_list.append(Path(paths))
             for path in glob_list:
                 if not path.exists():
-                    self.insert("ERROR: One of your specified paths does not exit:")
-                    self.insert(str(path), error=True)
+                    logger.error(f"The specified paths does not exist: {path}")
                     return
 
             start_new_thread(
@@ -273,13 +260,16 @@ class MinecraftLogsAnalyzerUI:
             )
 
     def exit(self):
-        self.insert("Stopping scan...")
+        logger.info("Stopping scan...")
         return
 
     def create_graph(self):
         try:
             if self.graph_data_collection == {}:
-                self.insert("Not enough data to create a graph, one full month is needed")
+                logger.warning(
+                    "Not enough data to create a graph; one full month is "
+                    "needed"
+                )
                 return
             data_list_dates = list(self.graph_data_collection.keys())
             data_list_hour = list(self.graph_data_collection.values())
@@ -293,15 +283,17 @@ class MinecraftLogsAnalyzerUI:
             plt.draw()
             plt.show()
         except Exception:
-            self.insert("An error ocured while creating the graph: ", error=True)
-            self.insert("Try closing and opening the program\n"
-                        "Make sure that you have matplotlib installed!")
+            logger.error(
+                "An unexpected error occurred while creating the graph. "
+                "Make sure that you have matplotlib installed!",
+                error=True
+            )
 
     def get_color(self):
         color = askcolor()
         self.graph_color = color[1]
         self.color_button.config(bg=self.graph_color)
-        self.insert(f"Color changed to {self.graph_color}")
+        logger.info(f"Color changed to {self.graph_color}")
 
     def create_csv(self):
         if len(self.csv_data) != 0:
@@ -315,4 +307,7 @@ class MinecraftLogsAnalyzerUI:
                 writer.writerow(["Day", "Hours"])
                 writer.writerows(self.csv_data.items())
         else:
-            self.insert("Not enough data to create a csv file, make sure to start a scan first")
+            logger.warning(
+                "Not enough data to create a CSV file. Make sure to start a "
+                "scan first."
+            )
