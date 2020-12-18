@@ -157,11 +157,12 @@ def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
 
 class PlaytimeCounterThread(threading.Thread):
 
-    def __init__(self, queue: Queue, path: Path, *args, **kwargs):
+    def __init__(self, queue: Queue, paths: List[Path],
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._stop_event = threading.Event()
         self._queue = queue
-        self._path = path
+        self._paths = paths
 
     def stop(self):
         self._stop_event.set()
@@ -177,20 +178,21 @@ class PlaytimeCounterThread(threading.Thread):
             default_factory=dt.timedelta
         )
 
-        for stream, file, date in iter_logs(self._path):
-            try:
-                delta = get_log_timedelta(stream)
-                if delta is None:
-                    continue
-                total_time += delta
-                logger.info(f"{file.name} {delta}")
-                playtimes[date] += delta
-                total_time += delta
-            finally:
-                stream.close()
-                if self.stopped():
-                    logger.info("Log scan cancelled")
-                    break
+        for path in self._paths:
+            for stream, file, date in iter_logs(path):
+                try:
+                    delta = get_log_timedelta(stream)
+                    if delta is None:
+                        continue
+                    total_time += delta
+                    logger.info(f"{file.name} {delta}")
+                    playtimes[date] += delta
+                    total_time += delta
+                finally:
+                    stream.close()
+                    if self.stopped():
+                        logger.info("Log scan cancelled")
+                        break
 
         playtimes_sorted = list(sorted(playtimes.items()))
         self._queue.put((total_time, playtimes_sorted))
