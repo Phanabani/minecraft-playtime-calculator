@@ -12,6 +12,8 @@ import threading
 from typing import *
 from queue import Queue
 
+__all__ = ['PlaytimeCounterThread']
+
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
 log_name_pattern = re.compile(r'(?P<date>\d{4}-\d\d-\d\d)-\d+\.log(?:\.gz)?')
@@ -155,7 +157,7 @@ def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
     return end_time - start_time
 
 
-class ThreadedPlaytimeCounter(threading.Thread):
+class PlaytimeCounterThread(threading.Thread):
 
     def __init__(self, queue: Queue, path: Path, *args, **kwargs):
         super().__init__(*args, **kwargs)
