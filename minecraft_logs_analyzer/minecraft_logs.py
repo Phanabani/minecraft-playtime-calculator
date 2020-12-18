@@ -12,9 +12,11 @@ import threading
 from typing import *
 from queue import Queue
 
-__all__ = ['PlaytimeCounterThread']
+__all__ = ['PlaytimeCounterThread', 'T_ScanResult']
 
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
+
+T_ScanResult = Tuple[dt.timedelta, List[dt.date, dt.timedelta]]
 
 log_name_pattern = re.compile(r'(?P<date>\d{4}-\d\d-\d\d)-\d+\.log(?:\.gz)?')
 time_pattern = re.compile(
@@ -157,7 +159,7 @@ def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
 
 class PlaytimeCounterThread(threading.Thread):
 
-    def __init__(self, queue: Queue, paths: List[Path],
+    def __init__(self, queue: Queue[T_ScanResult], paths: List[Path],
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._stop_event = threading.Event()
