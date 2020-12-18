@@ -8,11 +8,15 @@ import logging
 import os
 import re
 from pathlib import Path
+import sys
 import threading
 from typing import *
 from queue import Queue
 
-__all__ = ['PlaytimeCounterThread', 'T_PlaytimePerDay', 'T_ScanResult']
+__all__ = [
+    'PlaytimeCounterThread', 'T_PlaytimePerDay', 'T_ScanResult',
+    'get_default_logs_path'
+]
 
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
@@ -23,6 +27,36 @@ log_name_pattern = re.compile(r'(?P<date>\d{4}-\d\d-\d\d)-\d+\.log(?:\.gz)?')
 time_pattern = re.compile(
     r'\[(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})\]'
 )
+
+
+def get_default_logs_path() -> Optional[Path]:
+    platform = sys.platform
+    error_msg = (
+        "Could not automatically find your .minecraft/logs folder. Please "
+        "enter it manually."
+    )
+
+    if platform == 'win32':
+        appdata = os.environ['APPDATA']
+        path = Path(appdata, '.minecraft/logs')
+        if not path.exists():
+            logger.error(error_msg)
+            return
+        return path
+
+    if platform == 'darwin':
+        path = Path('~/Library/Application Support/minecraft/logs')
+        if not path.exists():
+            logger.error(error_msg)
+            return
+        return path
+
+    if  platform == 'linux':
+        path = Path('~/.minecraft/logs')
+        if not path.exists():
+            logger.error(error_msg)
+            return
+        return path
 
 
 def read_backward_until(
