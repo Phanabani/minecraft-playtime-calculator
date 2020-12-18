@@ -189,7 +189,7 @@ class ThreadedPlaytimeCounter(threading.Thread):
             finally:
                 stream.close()
                 if self.stopped():
-                    logger.info("Cancelling log scan")
+                    logger.info("Log scan cancelled")
                     break
 
         playtimes_sorted = list(sorted(playtimes.items()))
