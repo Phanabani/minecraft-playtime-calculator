@@ -1,20 +1,23 @@
 from __future__ import annotations
-from datetime import timedelta
+
+from collections import defaultdict
+import datetime as dt
 from io import TextIOBase, SEEK_END
 import gzip
 import logging
 import os
 import re
 from pathlib import Path
+import threading
 from typing import *
+from queue import Queue
 
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
-log_name_pattern = re.compile(r'\d{4}-\d\d-\d\d-\d+\.log(?:\.gz)?')
+log_name_pattern = re.compile(r'(?P<date>\d{4}-\d\d-\d\d)-\d+\.log(?:\.gz)?')
 time_pattern = re.compile(
-    r'\[(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})\]', re.I
+    r'\[(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})\]'
 )
-time_pattern_simple = re.compile(r'\d{2}:\d{2}:\d{2}')
 
 
 def read_backward_until(
@@ -86,7 +89,7 @@ def read_last_line(stream: TextIO):
                                trim_start=len(os.linesep))
 
 
-def iter_logs(path: Union[str, Path]) -> Generator[TextIO]:
+def iter_logs(path: Union[str, Path]) -> Generator[Tuple[TextIO, Path, dt.date]]:
     if isinstance(path, str):
         path = Path(path)
     elif not isinstance(path, Path):
@@ -94,82 +97,100 @@ def iter_logs(path: Union[str, Path]) -> Generator[TextIO]:
     open_methods = {'.log': open, '.gz': gzip.open}
 
     for file in path.iterdir():
-        if not log_name_pattern.fullmatch(file.name):
+        name_match = log_name_pattern.fullmatch(file.name)
+        if not name_match:
             continue
-        yield open_methods[file.suffix](
+        date = dt.date.fromisoformat(name_match.group('date'))
+        stream = open_methods[file.suffix](
             file, 'rt', encoding='ansi', errors='replace', newline=''
         )
+        yield stream, file, date
 
 
-def count_playtime(path: Union[str, Path], count: int = -1, print_files='file'):
-    current_month = ""
-    total_data_time = 0
-    total_time = timedelta()
+def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
+    try:
+        start_time = time_pattern.match(log.readline())
+        if start_time is None:
+            logger.warning(
+                f"Unable to find start time; skipping (file={log.name})"
+            )
+        end_time = time_pattern.match(read_backward_until(log, time_pattern))
+        if end_time is None:
+            logger.warning(
+                f"Unable to find end time; skipping (file={log.name})"
+            )
+    except EOFError:
+        logger.warning(
+            f"Log file may be corrupted; skipping (file={log.name})"
+        )
+        return
+    except OSError:
+        logger.warning(
+            f"Log file may be corrupted or is unable to be opened; "
+            f"skipping (file={log.name})",
+            error=True
+        )
+        return
+    except:
+        logger.warning(
+            f"Unexpected error while reading log file; skipping "
+            f"(file={log.name})",
+            error=True
+        )
+        return
 
-    for log in iter_logs(path):
-        try:
-            if stop_scan:
-                stop_scan = False
-                logger.info(f"Total time: {total_time}")
-                data_total_play_time = total_time
-                return
-            if count == 0:
-                return
-            count -= 1
+    start_time = dt.timedelta(
+        hours=int(start_time['hour']),
+        minutes=int(start_time['min']),
+        seconds=int(start_time['sec'])
+    )
+    end_time = dt.timedelta(
+        hours=int(end_time['hour']),
+        minutes=int(end_time['min']),
+        seconds=int(end_time['sec'])
+    )
 
+    if end_time < start_time:
+        end_time += dt.timedelta(days=1)
+    return end_time - start_time
+
+
+class ThreadedPlaytimeCounter(threading.Thread):
+
+    def __init__(self, queue: Queue, path: Path, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stop_event = threading.Event()
+        self._queue = queue
+        self._path = path
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
+
+    def run(self) -> NoReturn:
+        total_time = dt.timedelta()
+        # Logs for a given date may be split to reduce filesize, so multiple
+        # timedeltas for a date will be summed
+        playtimes: Dict[dt.date, dt.timedelta] = defaultdict(
+            default_factory=dt.timedelta
+        )
+
+        for stream, file, date in iter_logs(self._path):
             try:
-                start_time = time_pattern.match(log.readline()).groupdict()
-                end_time = time_pattern.match(
-                    read_backward_until(log, time_pattern_simple)).groupdict()
-            except AttributeError:
-                # Not a recognized chat log
-                logger.warning(f"Unrecognized log file format; skipping (file={log.name})")
-                continue
-            except EOFError:
-                logger.warning(f"Log file may be corrupted; skipping (file={log.name})")
-                continue
-            except OSError:
-                logger.warning(f"Log file may be corrupted; skipping (file={log.name})")
-                continue
-            except:
-                logger.warning(f"Unexpected error while reading log file; skipping (file={log.name})")
-                continue
-            start_time = timedelta(
-                hours=int(start_time['hour']),
-                minutes=int(start_time['min']),
-                seconds=int(start_time['sec'])
-            )
-            end_time = timedelta(
-                hours=int(end_time['hour']),
-                minutes=int(end_time['min']),
-                seconds=int(end_time['sec'])
-            )
-            if end_time < start_time:
-                end_time += timedelta(days=1)
-            delta = end_time - start_time
-            total_time += delta
-            if print_files == 'full':
-                logger.info(f"{log.name} {delta}")
-            elif print_files == 'file':
-                logger.info(f"{Path(log.name).name} {delta}")
-            # collect data for csv
-            csv_data[str(Path(log.name).name)[:12]] = str(delta)
+                delta = get_log_timedelta(stream)
+                if delta is None:
+                    continue
+                total_time += delta
+                logger.info(f"{file.name} {delta}")
+                playtimes[date] += delta
+                total_time += delta
+            finally:
+                stream.close()
+                if self.stopped():
+                    logger.info("Cancelling log scan")
+                    break
 
-            # collect data for graph
-            month = str(Path(log.name).name)[:7]
-            if current_month != month:  # Check if we are still on the same month if not save the current month and move on
-                if current_month != '':
-                    if current_month not in graph_data_collection:
-                        graph_data_collection[current_month] = 0
-                    graph_data_collection[current_month] += int(total_data_time/3600) # make seconds an hour this will mean that if you played less then an hour it will end up as 0
-                # add first month and next
-                current_month = month
-                total_data_time = delta.total_seconds()
-            else:
-                total_data_time += delta.total_seconds()
-                data_total_play_time = total_time
-
-        finally:
-            log.close()
-
-    return total_time
+        playtimes_sorted = list(sorted(playtimes.items()))
+        self._queue.put((total_time, playtimes_sorted))
