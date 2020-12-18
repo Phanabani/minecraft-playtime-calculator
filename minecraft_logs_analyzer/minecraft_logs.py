@@ -12,11 +12,12 @@ import threading
 from typing import *
 from queue import Queue
 
-__all__ = ['PlaytimeCounterThread', 'T_ScanResult']
+__all__ = ['PlaytimeCounterThread', 'T_PlaytimePerDay', 'T_ScanResult']
 
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
-T_ScanResult = Tuple[dt.timedelta, List[dt.date, dt.timedelta]]
+T_PlaytimePerDay = List[Tuple[dt.date, dt.timedelta]]
+T_ScanResult = Tuple[dt.timedelta, T_PlaytimePerDay]
 
 log_name_pattern = re.compile(r'(?P<date>\d{4}-\d\d-\d\d)-\d+\.log(?:\.gz)?')
 time_pattern = re.compile(
