@@ -301,7 +301,7 @@ class MinecraftLogsAnalyzerUI:
             logger.error(
                 "An unexpected error occurred while creating the graph. "
                 "Make sure that you have matplotlib installed!",
-                error=True
+                exc_info=True
             )
 
     def get_color(self):

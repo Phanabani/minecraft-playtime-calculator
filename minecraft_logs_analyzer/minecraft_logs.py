@@ -165,14 +165,14 @@ def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
         logger.warning(
             f"Log file may be corrupted or is unable to be opened; "
             f"skipping (file={log.name})",
-            error=True
+            exc_info=True
         )
         return
     except:
         logger.warning(
             f"Unexpected error while reading log file; skipping "
             f"(file={log.name})",
-            error=True
+            exc_info=True
         )
         return
 
