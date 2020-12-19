@@ -1,12 +1,11 @@
 from __future__ import annotations
-import asyncio
 from csv import writer as csv_writer
-from datetime import timedelta
+import datetime as dt
 from enum import IntEnum
 from glob import iglob
 import logging
-import os
 from pathlib import Path
+import queue
 from tkinter import *
 from tkinter import filedialog
 from tkinter.colorchooser import *
@@ -16,7 +15,7 @@ from typing import *
 
 from matplotlib import pyplot as plt
 
-from . import minecraft_logs as mc_logs
+from .minecraft_logs import *
 
 logger = logging.getLogger('minecraft_logs_analyzer.ui')
 
@@ -55,11 +54,14 @@ class MinecraftLogsAnalyzerUI:
     log_text_color = '#2C2F33'
     font = 'Helvetica 10'
 
+    _scan_thread: PlaytimeCounterThread = None
+    _scan_queue: queue.Queue[T_ScanResult] = None
     log_widget: ScrolledText
 
     def __init__(self):
         self.root = Tk()
-        self.csv_data = {}
+        self.playtime_total: Optional[dt.timedelta] = None
+        self.playtime_days: Optional[T_PlaytimePerDay] = None
 
         self.graph_data_collection = {}
         self.total_play_time = None
@@ -145,7 +147,7 @@ class MinecraftLogsAnalyzerUI:
 
         # run button
         submit_button = Button(
-            frame, text="Run", command=self.scan_logs,
+            frame, text="Run", command=self.start_scan,
             cursor="hand2", bg=bg, fg=fg, font=font
         )
         submit_button.config(width=20)
@@ -182,7 +184,7 @@ class MinecraftLogsAnalyzerUI:
 
         # exit button
         stop_button = Button(
-            frame, text="Stop scanning", command=exit,
+            frame, text="Stop scanning", command=self.stop_scan,
             width=20, bg=bg, fg=fg, font=font
         )
         stop_button.pack()
@@ -201,86 +203,67 @@ class MinecraftLogsAnalyzerUI:
         else:
             self.path_input.config(state='normal', cursor="hand2")
         logger.info(f"Changed mode to {ScanMode(scan_mode)._name_.lower()}")
-        # probably put path detect here
 
-    def count_playtimes_thread(self, paths: Union[Path, List[Path]],
-                               mode: ScanMode):
-        total_time = timedelta()
-
-        if mode == ScanMode.AUTOMATIC:
-            paths = Path(paths)
-            total_time += mc_logs.count_playtime(paths, print_files='file')
-        elif mode == ScanMode.MANUAL:
-            for path in paths:
-                total_time += mc_logs.count_playtime(path, print_files='full' if len(paths) > 1 else 'file')
-        elif mode == ScanMode.GLOB:
-            for path in paths:
-                if path.is_dir():
-                    total_time += mc_logs.count_playtime(path, print_files='full')
-
-        logger.info(f"Total Time: {total_time}")
-        self.total_play_time = total_time
-
-    def scan_logs(self):
-        self.csv_data = {}
-        self.graph_data_collection = {}
-        logger.info("Starting log scanning...")
-
-        if self.scan_mode == ScanMode.AUTOMATIC:
-            default_logs_path = Path(
-                'C:/Users', os.getlogin(), 'AppData/Roaming/.minecraft', 'logs'
-            )
-
-            if default_logs_path.exists():
-                start_new_thread(
-                    self.count_playtimes_thread, (),
-                    {"paths": default_logs_path, "mode": self.scan_mode}
-                )
+    def start_scan(self):
+        if self._scan_thread is None:
+            logger.info("Starting log scan")
+            self._scan_queue = queue.Queue()
+            paths = self.get_paths()
+            if paths is None:
                 return
-            # say that it did not exist
-            else:
+            self._scan_thread = PlaytimeCounterThread(self._scan_queue, paths)
+            self._scan_thread.start()
+            self.root.after(100, self.process_queue)
+
+    def process_queue(self):
+        try:
+            self.playtime_total, self.playtime_days = self._scan_queue.get()
+        except queue.Empty:
+            self.root.after(100, self.process_queue)
+
+    def stop_scan(self):
+        if self._scan_thread is not None and not self._scan_thread.stopped():
+            logger.info("Cancelling log scan")
+            self._scan_thread.stop()
+
+    def get_paths(self) -> Optional[List[Path]]:
+        scan_mode = self.scan_mode.get()
+        if scan_mode == ScanMode.AUTOMATIC:
+            default_logs_path = get_default_logs_path()
+            if not default_logs_path.exists():
                 logger.error(
                     "Could not automatically locate your .minecraft/logs folder"
                 )
+                return
+            return [default_logs_path]
 
-        elif self.scan_mode == ScanMode.MANUAL:
-            paths_list = self.path_input.get().split("|")
-            for path in paths_list:
+        if scan_mode == ScanMode.MANUAL:
+            paths = []
+            for path in self.path.get().split("|"):
                 path = Path(path)
-                if path.exists() is False:
+                if not path.exists():
                     logger.error(
                         f"The specified path does not exist: {path}"
                     )
                     return
-            paths_list_ready = [Path(path) for path in paths_list]
-            start_new_thread(
-                self.count_playtimes_thread, (),
-                {"paths": paths_list_ready, "mode": self.scan_mode}
-            )
+                paths.append(path)
+            return paths
 
-        elif self.scan_mode == ScanMode.GLOB:
-            globs = self.path_input.get().split("|")
-            glob_list = []
-            for _glob in globs:
-                for paths in iglob(_glob+"", recursive=True):
-                    glob_list.append(Path(paths))
-            for path in glob_list:
-                if not path.exists():
-                    logger.error(f"The specified paths does not exist: {path}")
-                    return
-
-            start_new_thread(
-                self.count_playtimes_thread, (),
-                {"paths": glob_list, "mode": self.scan_mode}
-            )
-
-    def exit(self):
-        logger.info("Stopping scan...")
-        return
+        if scan_mode == ScanMode.GLOB:
+            globs = self.path.get().split("|")
+            paths = []
+            for glob in globs:
+                for path in iglob(glob, recursive=True):
+                    path = Path(path)
+                    paths.append(path)
+            if not paths:
+                logger.error(f"No paths were found")
+                return
+            return paths
 
     def create_graph(self):
         try:
-            if self.graph_data_collection == {}:
+            if not self.playtime_days:
                 logger.warning(
                     "Not enough data to create a graph; one full month is "
                     "needed"
@@ -294,7 +277,7 @@ class MinecraftLogsAnalyzerUI:
 
             plt.xlabel("Months")
             plt.ylabel("Hours")
-            plt.title(f"Total playtime:\n{self.total_play_time}")
+            plt.title(f"Total playtime:\n{self.playtime_total}")
             plt.draw()
             plt.show()
         except Exception:
