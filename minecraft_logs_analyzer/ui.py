@@ -17,9 +17,11 @@ from matplotlib import pyplot as plt
 
 from .minecraft_logs import *
 
+parent_logger = logging.getLogger('minecraft_logs_analyzer')
+parent_logger.setLevel(logging.INFO)
 logger = logging.getLogger('minecraft_logs_analyzer.ui')
 
-LOG_FORMAT = '%(asctime)s|%(levelname)s|%(name)s|%(message)s'
+LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 
 class ScanMode(IntEnum):
@@ -74,7 +76,7 @@ class MinecraftLogsAnalyzerUI:
         )
         self._log_handler.formatter = logging.Formatter()
         self._log_handler.setFormatter(logging.Formatter(LOG_FORMAT))
-        logger.addHandler(self._log_handler)
+        parent_logger.addHandler(self._log_handler)
 
     def _pack(self):
         root = self.root
