@@ -214,9 +214,7 @@ class PlaytimeCounterThread(threading.Thread):
         total_time = dt.timedelta()
         # Logs for a given date may be split to reduce filesize, so multiple
         # timedeltas for a date will be summed
-        playtimes: Dict[dt.date, dt.timedelta] = defaultdict(
-            default_factory=dt.timedelta
-        )
+        playtimes: Dict[dt.date, dt.timedelta] = defaultdict(dt.timedelta)
 
         for path in self._paths:
             for stream, file, date in iter_logs(path):
