@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 import threading
 from typing import *
+from typing import Pattern
 from queue import Queue
 
 __all__ = [
