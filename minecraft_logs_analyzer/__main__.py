@@ -1,5 +1,8 @@
-from .ui import MinecraftLogsAnalyzerUI
+import wx
+
+from .ui import MinecraftLogsAnalyzerFrame
 
 if __name__ == '__main__':
-    ui = MinecraftLogsAnalyzerUI()
-    ui.start()
+    app = wx.App(redirect=False, useBestVisual=True)
+    frame = MinecraftLogsAnalyzerFrame()
+    app.MainLoop()

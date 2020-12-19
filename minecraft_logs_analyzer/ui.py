@@ -6,14 +6,10 @@ from glob import iglob
 import logging
 from pathlib import Path
 import queue
-from tkinter import *
-from tkinter import filedialog
-from tkinter.colorchooser import *
-from tkinter.scrolledtext import ScrolledText
-import tkinter.ttk as ttk
 from typing import *
 
 from matplotlib import pyplot as plt
+import wx
 
 from .minecraft_logs import *
 
@@ -47,7 +43,7 @@ class TkinterScrolledTextLogHandler(logging.Handler):
             self._scrolled_text.see(END)
 
 
-class MinecraftLogsAnalyzerUI:
+class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     background_color = '#23272A'
     outline_color = '#2C2F33'
@@ -60,15 +56,18 @@ class MinecraftLogsAnalyzerUI:
     _scan_queue: queue.Queue[T_ScanResult] = None
     log_widget: ScrolledText
 
-    def __init__(self):
-        self.root = Tk()
+    def __init__(self, parent, title):
+        super().__init__(parent=parent, title=title)
         self.playtime_total: Optional[dt.timedelta] = None
         self.playtime_days: Optional[T_PlaytimePerDay] = None
 
         self.scan_mode = IntVar(value=int(ScanMode.AUTOMATIC))
         self.path = StringVar()
+
+        self.frame = wx.Frame(None, wx.ID_ANY, "Minecraft playtime calculator - by Quinten Cabo and Hawkpath")
         self._pack()
         self._init_logging()
+        self.Show(True)
 
     def _init_logging(self):
         self._log_handler = TkinterScrolledTextLogHandler(
@@ -187,9 +186,6 @@ class MinecraftLogsAnalyzerUI:
             width=20, bg=bg, fg=fg, font=font
         )
         stop_button.pack()
-
-    def start(self):
-        self.root.mainloop()
 
     @property
     def log_handler(self):

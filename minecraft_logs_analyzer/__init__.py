@@ -1,2 +1,2 @@
 from .minecraft_logs import *
-from .ui import MinecraftLogsAnalyzerUI
+from .ui import MinecraftLogsAnalyzerFrame
