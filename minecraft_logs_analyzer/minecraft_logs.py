@@ -146,16 +146,18 @@ def iter_logs(path: Union[str, Path]) -> Generator[Tuple[TextIO, Path, dt.date]]
 
 def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
     try:
-        start_time = time_pattern.match(log.readline())
+        start_time = time_pattern.search(log.readline())
         if start_time is None:
             logger.warning(
                 f"Unable to find start time; skipping (file={log.name})"
             )
-        end_time = time_pattern.match(read_backward_until(log, time_pattern))
+            return
+        end_time = time_pattern.search(read_backward_until(log, time_pattern))
         if end_time is None:
             logger.warning(
                 f"Unable to find end time; skipping (file={log.name})"
             )
+            return
     except EOFError:
         logger.warning(
             f"Log file may be corrupted; skipping (file={log.name})"
