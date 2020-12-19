@@ -63,10 +63,7 @@ class MinecraftLogsAnalyzerUI:
         self.playtime_total: Optional[dt.timedelta] = None
         self.playtime_days: Optional[T_PlaytimePerDay] = None
 
-        self.graph_data_collection = {}
-        self.total_play_time = None
-
-        self.scan_mode = IntVar(None, ScanMode.AUTOMATIC)
+        self.scan_mode = IntVar(value=int(ScanMode.AUTOMATIC))
         self.path = StringVar()
         self._pack()
         self._init_logging()
@@ -109,17 +106,17 @@ class MinecraftLogsAnalyzerUI:
 
         mode1 = ttk.Radiobutton(
             frame, text="Automatic    ", variable=self.scan_mode,
-            value=ScanMode.AUTOMATIC, command=self.change_mode,
+            value=int(ScanMode.AUTOMATIC), command=self.change_mode,
             cursor="hand2", style='Wild.TRadiobutton'
         )
         mode2 = ttk.Radiobutton(
             frame, text="Enter path(s)", variable=self.scan_mode,
-            value=ScanMode.MANUAL, command=self.change_mode,
+            value=int(ScanMode.MANUAL), command=self.change_mode,
             cursor="hand2", style='Wild.TRadiobutton'
         )
         mode3 = ttk.Radiobutton(
             frame, text="Enter glob    ", variable=self.scan_mode,
-            value=ScanMode.GLOB, command=self.change_mode,
+            value=int(ScanMode.GLOB), command=self.change_mode,
             cursor="hand2", style='Wild.TRadiobutton'
         )
         mode1.pack()
