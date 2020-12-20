@@ -93,10 +93,13 @@ def read_backward_until(
         buf = stream.read(buf_size) + buf[:buf_size]
 
         if isinstance(delimiter, str):
-            delim_pos = buf.find(delimiter)
+            delim_pos = buf.rfind(delimiter)
         else:
-            delim_pos = delimiter.search(buf)
-            delim_pos = delim_pos.start() if delim_pos else -1
+            matches = list(delimiter.finditer(buf))
+            if matches:
+                delim_pos = matches[-1].start()
+            else:
+                delim_pos = -1
 
         if delim_pos == -1 or delim_pos >= buf_size:
             # Skip if no delimiter found or if it's in the second half of
