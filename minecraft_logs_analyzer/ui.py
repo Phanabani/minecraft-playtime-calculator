@@ -29,6 +29,12 @@ class ScanMode(Enum):
     GLOB = 'glob'
 
 
+class ScanningState(Enum):
+    IDLE = 0
+    RUNNING = 1
+    CANCELLING = 2
+
+
 WxLogEvent, EVT_WX_LOG_EVENT = wx.lib.newevent.NewEvent()
 
 
@@ -91,11 +97,13 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
         self.scan_mode = ScanMode.AUTOMATIC
         self.path_or_glob = None
+        self.scanning_state = ScanningState.IDLE
 
         self.__DoLayout()
         self._init_logging()
 
-        self.panel_controls.Bind(wx.EVT_RADIOBUTTON, self.change_scan_mode)
+        self.panel_controls.Bind(wx.EVT_RADIOBUTTON, self.OnChangeScanMode)
+        self.scan_button.Bind(wx.EVT_BUTTON, self.OnScanButton)
 
         self.Show(True)
 
@@ -105,7 +113,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self._log_handler.formatter = logging.Formatter()
         self._log_handler.setFormatter(logging.Formatter(LOG_FORMAT))
         parent_logger.addHandler(self._log_handler)
-        self.Bind(EVT_WX_LOG_EVENT, self.onLogEvent)
+        self.Bind(EVT_WX_LOG_EVENT, self.OnLogEvent)
 
     def __DoLayout(self):
         bg = self.background_color
@@ -194,12 +202,12 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         log.SetForegroundColour(fg)
         sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
 
-    def onLogEvent(self, event: WxLogEvent):
-        msg = event.message + '\n'
+    def OnLogEvent(self, e: WxLogEvent):
+        msg = e.message + '\n'
         self.log_window.AppendText(msg)
-        event.Skip()
+        e.Skip()
 
-    def change_scan_mode(self, e):
+    def OnChangeScanMode(self, e: wx.CommandEvent):
         self.scan_mode = ScanMode(e.EventObject.Name)
         if self.scan_mode is ScanMode.AUTOMATIC:
             self.panel_path.Hide()
@@ -207,6 +215,18 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             self.panel_path.Show()
         self.sizer_controls.Layout()
         logger.info(f"Changed mode to {self.scan_mode._name_}")
+
+    def OnScanButton(self, e: wx.CommandEvent):
+        if self.scanning_state is ScanningState.IDLE:
+            self.scanning_state = ScanningState.RUNNING
+            self.scan_button.SetLabel("Cancel")
+        elif self.scanning_state is ScanningState.RUNNING:
+            self.scanning_state = ScanningState.CANCELLING
+            self.scan_button.Disable()
+            self.scan_button.SetLabel("Cancelling...")
+        elif self.scanning_state is ScanningState.CANCELLING:
+            self.scanning_state = ScanningState.IDLE
+            self.scan_button.SetLabel(self.text_begin_scan)
 
     def start_scan(self):
         if self._scan_thread is None:
