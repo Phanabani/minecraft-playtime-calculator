@@ -85,20 +85,17 @@ class PlaytimeCounterThread(threading.Thread):
         cancelled = False
 
         for path in self._paths:
-            for stream, file, date in iter_logs(path):
-                try:
-                    delta = get_log_timedelta(stream)
-                    if delta is None:
-                        continue
-                    total_time += delta
-                    logger.info(f"{file.name} {delta}")
-                    playtimes[date] += delta
-                    total_time += delta
-                finally:
-                    stream.close()
-                    if self.stopped():
-                        cancelled = True
-                        break
+            for file, date in iter_logs(path):
+                if self.stopped():
+                    cancelled = True
+                    break
+                delta = get_log_timedelta(file)
+                if delta is None:
+                    continue
+                total_time += delta
+                logger.info(f"{file.name} {delta}")
+                playtimes[date] += delta
+                total_time += delta
 
         playtimes_sorted = list(sorted(playtimes.items()))
         event = ScanCompleteEvent(

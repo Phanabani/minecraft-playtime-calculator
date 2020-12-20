@@ -119,24 +119,30 @@ def read_backward_until(
     return None
 
 
-def iter_logs(path: Union[str, Path]) -> Generator[Tuple[TextIO, Path, dt.date]]:
+def iter_logs(path: Union[str, Path]) -> Generator[Tuple[Path, dt.date]]:
     if isinstance(path, str):
         path = Path(path)
     elif not isinstance(path, Path):
         raise TypeError("path must be of type str or Path.")
-    open_methods = {'.log': open, '.gz': gzip.open}
 
     for file in path.iterdir():
         name_match = log_name_pattern.fullmatch(file.name)
         if not name_match:
             continue
         date = dt.date.fromisoformat(name_match.group('date'))
-        stream = open_methods[file.suffix](file, 'rt', errors='ignore')
-        yield stream, file, date
+        yield file, date
 
 
-def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
+def open_log(file: Path) -> TextIO:
+    if file.suffix == '.gz':
+        return gzip.open(file, 'rt', errors='ignore')
+    if file.suffix == '.log':
+        return open(file, 'rt', errors='ignore')
+
+
+def get_log_timedelta(log: Path) -> Optional[dt.timedelta]:
     try:
+        log = open_log(log)
         start_time = time_pattern.search(log.readline())
         if start_time is None:
             logger.warning(
@@ -168,6 +174,8 @@ def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
             exc_info=True
         )
         return
+    finally:
+        log.close()
 
     start_time = dt.timedelta(
         hours=int(start_time['hour']),
