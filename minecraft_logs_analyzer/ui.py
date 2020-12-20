@@ -10,6 +10,7 @@ from typing import *
 
 from matplotlib import pyplot as plt
 import wx
+import wx.lib.newevent
 from wx.lib.platebtn import PB_STYLE_SQUARE
 
 from .minecraft_logs import *
@@ -28,21 +29,27 @@ class ScanMode(Enum):
     GLOB = 'glob'
 
 
-class TkinterScrolledTextLogHandler(logging.Handler):
+WxLogEvent, EVT_WX_LOG_EVENT = wx.lib.newevent.NewEvent()
 
-    def __init__(self, scrolled_text: ScrolledText,
-                 level: int = logging.NOTSET, *, scroll=True):
+
+class WxLogHandler(logging.Handler):
+
+    def __init__(self, destination: wx.Window, level: int = logging.NOTSET):
         super().__init__(level=level)
-        self._scrolled_text = scrolled_text
-        self.scroll = scroll
+        self.destination = destination
+
+    def flush(self):
+        pass
 
     def emit(self, record: logging.LogRecord):
-        if not isinstance(self._scrolled_text, ScrolledText):
-            return
-        formatted = self.format(record)
-        self._scrolled_text.insert(END, formatted)
-        if self.scroll:
-            self._scrolled_text.see(END)
+        try:
+            msg = self.format(record)
+            evt = WxLogEvent(message=msg, levelname=record.levelname)
+            wx.PostEvent(self.destination, evt)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
 
 
 def create_panel_with_margin(parent: wx.Window, margin: int):
@@ -62,7 +69,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
     margin_main = 20
     margin_control = 20
     margin_control_label = 4
-    width_paths_input = 200
+    width_paths_input = 400
+
+    text_begin_scan = "Calculate playtime"
 
     font_size = 11
     background_color = '#23272A'
@@ -74,7 +83,6 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     _scan_thread: PlaytimeCounterThread = None
     _scan_queue: queue.Queue[T_ScanResult] = None
-    log_widget: ScrolledText
 
     def __init__(self, parent=None):
         super().__init__(parent, title=self.title, size=(1280, 720))
@@ -84,18 +92,17 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self.scan_mode = ScanMode.AUTOMATIC
         self.path_or_glob = None
 
-        self._init_logging()
         self._pack()
         self._init_logging()
         self.Show(True)
 
     def _init_logging(self):
-        self._log_handler = TkinterScrolledTextLogHandler(
-            self.log_widget, logging.INFO
-        )
+        self._log_handler = WxLogHandler(self, logging.INFO)
+        # self._log_handler = logging.StreamHandler(sys.stdout)
         self._log_handler.formatter = logging.Formatter()
         self._log_handler.setFormatter(logging.Formatter(LOG_FORMAT))
         parent_logger.addHandler(self._log_handler)
+        self.Bind(EVT_WX_LOG_EVENT, self.onLogEvent)
 
     def _pack(self):
         bg = self.background_color
@@ -166,24 +173,29 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         sizer_controls.Add(panel_path)
 
         # button = wx.Button(controls_panel, label="Calculate play time")
-        self.b = button = PlateButton(
-            panel_controls, label="hi",
-            style=PB_STYLE_SQUARE, size=(200, 40)
+        self.scan_button = button = PlateButton(
+            panel_controls, label=self.text_begin_scan,
+            style=PB_STYLE_SQUARE, size=(-1, 60)
         )
         button.SetBackgroundColour(element_color)
         sizer_controls.AddStretchSpacer(1)
-        sizer_controls.Add(button)
+        sizer_controls.Add(button, 0, wx.EXPAND)
 
         # Add log output
 
         sizer_main.AddSpacer(self.margin_main)
 
-        log = wx.TextCtrl(panel_main, value="HEY THERE", style=wx.TC_MULTILINE)
+        self.log_window = log = wx.TextCtrl(
+            panel_main, style=wx.TE_MULTILINE | wx.TE_READONLY
+        )
+        log.SetBackgroundColour(element_color)
+        log.SetForegroundColour(fg)
         sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
 
-    @property
-    def log_handler(self):
-        return self._log_handler
+    def onLogEvent(self, event: WxLogEvent):
+        msg = event.message + '\n'
+        self.log_window.AppendText(msg)
+        event.Skip()
 
     def change_scan_mode(self, e):
         self.scan_mode = ScanMode(e.EventObject.Name)
