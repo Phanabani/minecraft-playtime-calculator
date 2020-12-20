@@ -11,10 +11,11 @@ import sys
 from typing import *
 from typing import Match, Pattern
 
-logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
+__all__ = [
+    'iter_logs', 'get_log_timedelta', 'get_default_logs_path'
+]
 
-T_PlaytimePerDay = List[Tuple[dt.date, dt.timedelta]]
-T_ScanResult = Tuple[dt.timedelta, T_PlaytimePerDay]
+logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
 log_name_pattern = re.compile(r'(?P<date>\d{4}-\d\d-\d\d)-\d+\.log(?:\.gz)?')
 time_pattern = re.compile(

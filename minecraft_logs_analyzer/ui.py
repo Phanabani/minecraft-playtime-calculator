@@ -7,7 +7,6 @@ from enum import Enum
 from glob import iglob
 import logging
 from pathlib import Path
-import queue
 import threading
 from typing import *
 
@@ -23,7 +22,7 @@ parent_logger = logging.getLogger('minecraft_logs_analyzer')
 parent_logger.setLevel(logging.INFO)
 logger = logging.getLogger('minecraft_logs_analyzer.ui')
 
-LOG_FORMAT = '%(levelname)s %(message)s'
+LOG_FORMAT = '[%(levelname)s] %(message)s'
 
 
 class ScanMode(Enum):
@@ -61,7 +60,9 @@ class WxLogHandler(logging.Handler):
             self.handleError(record)
 
 
+T_TimePerDay = List[Tuple[dt.date, dt.timedelta]]
 ScanCompleteEvent, EVT_WX_SCAN_COMPLETE = wx.lib.newevent.NewEvent()
+
 
 class PlaytimeCounterThread(threading.Thread):
 
@@ -139,7 +140,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
     def __init__(self, parent=None):
         super().__init__(parent, title=self.title, size=(1280, 720))
         self.playtime_total: Optional[dt.timedelta] = None
-        self.playtime_days: Optional[T_PlaytimePerDay] = None
+        self.playtime_days: Optional[T_TimePerDay] = None
 
         self.scan_mode = ScanMode.AUTOMATIC
         self.path_or_glob = None
