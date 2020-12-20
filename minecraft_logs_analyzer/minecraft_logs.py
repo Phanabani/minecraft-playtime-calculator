@@ -133,7 +133,7 @@ def iter_logs(path: Union[str, Path]) -> Generator[Tuple[TextIO, Path, dt.date]]
         if not name_match:
             continue
         date = dt.date.fromisoformat(name_match.group('date'))
-        stream = open_methods[file.suffix](file, 'rt')
+        stream = open_methods[file.suffix](file, 'rt', errors='ignore')
         yield stream, file, date
 
 
