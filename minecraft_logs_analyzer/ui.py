@@ -1,7 +1,7 @@
 from __future__ import annotations
 from csv import writer as csv_writer
 import datetime as dt
-from enum import IntEnum
+from enum import Enum
 from glob import iglob
 import logging
 from pathlib import Path
@@ -10,8 +10,10 @@ from typing import *
 
 from matplotlib import pyplot as plt
 import wx
+from wx.lib.platebtn import PB_STYLE_SQUARE
 
 from .minecraft_logs import *
+from .plate_button import PlateButton
 
 parent_logger = logging.getLogger('minecraft_logs_analyzer')
 parent_logger.setLevel(logging.INFO)
@@ -20,10 +22,10 @@ logger = logging.getLogger('minecraft_logs_analyzer.ui')
 LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 
-class ScanMode(IntEnum):
-    AUTOMATIC = 0
-    MANUAL = 1
-    GLOB = 2
+class ScanMode(Enum):
+    AUTOMATIC = 'automatic'
+    MANUAL = 'manual'
+    GLOB = 'glob'
 
 
 class TkinterScrolledTextLogHandler(logging.Handler):
@@ -43,28 +45,46 @@ class TkinterScrolledTextLogHandler(logging.Handler):
             self._scrolled_text.see(END)
 
 
+def create_panel_with_margin(parent: wx.Window, margin: int):
+    margin_panel = wx.Panel(parent)
+    margin_sizer = wx.BoxSizer()
+    margin_panel.SetSizer(margin_sizer)
+
+    panel = wx.Panel(margin_panel)
+    margin_sizer.Add(panel, 1, wx.ALL | wx.EXPAND, margin)
+    return panel
+
+
 class MinecraftLogsAnalyzerFrame(wx.Frame):
 
+    title = "Minecraft playtime calculator - by Quinten Cabo and Hawkpath"
+
+    margin_main = 20
+    margin_control = 20
+    margin_control_label = 4
+    width_paths_input = 200
+
+    font_size = 11
     background_color = '#23272A'
     outline_color = '#2C2F33'
     foreground_color = 'white'
+    element_color = '#353C40'
     graph_color = '#18aaff'
     log_text_color = '#2C2F33'
-    font = 'Helvetica 10'
 
     _scan_thread: PlaytimeCounterThread = None
     _scan_queue: queue.Queue[T_ScanResult] = None
     log_widget: ScrolledText
 
-    def __init__(self, parent, title):
-        super().__init__(parent=parent, title=title)
+    def __init__(self, parent=None):
+        super().__init__(parent, title=self.title, size=(1280, 720))
         self.playtime_total: Optional[dt.timedelta] = None
         self.playtime_days: Optional[T_PlaytimePerDay] = None
 
-        self.scan_mode = IntVar(value=int(ScanMode.AUTOMATIC))
-        self.path = StringVar()
+        self.scan_mode = ScanMode.AUTOMATIC
+        self.path_or_glob = None
 
-        self.frame = wx.Frame(None, wx.ID_ANY, "Minecraft playtime calculator - by Quinten Cabo and Hawkpath")
+        self._init_logging()
         self._pack()
         self._init_logging()
         self.Show(True)
@@ -78,126 +98,101 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         parent_logger.addHandler(self._log_handler)
 
     def _pack(self):
-        root = self.root
         bg = self.background_color
         fg = self.foreground_color
-        font = self.font
-
-        root.title("Playtime calculator - By Quinten Cabo")
-        root.config(bg=bg)
-
-        frame = Frame(root, bg=bg)
-        frame.pack()
-
-        # mode selection
-        mode_text = Message(
-            frame, text="Choose scan mode:", bg=bg, fg=fg,
-            relief="groove", font=font
-        )
-        mode_text.config(width=120)
-        mode_text.pack()
-
-        s = ttk.Style()  # Creating style element
-        s.configure(
-            'Wild.TRadiobutton',  # First argument is the name of style. Needs to end with: .TRadiobutton
-            background=bg,  # Setting background to our specified color above
-            foreground=fg,
-            font=font
+        element_color = self.element_color
+        font = wx.Font(
+            self.font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+            wx.FONTWEIGHT_NORMAL, faceName=''
         )
 
-        mode1 = ttk.Radiobutton(
-            frame, text="Automatic    ", variable=self.scan_mode,
-            value=int(ScanMode.AUTOMATIC), command=self.change_mode,
-            cursor="hand2", style='Wild.TRadiobutton'
-        )
-        mode2 = ttk.Radiobutton(
-            frame, text="Enter path(s)", variable=self.scan_mode,
-            value=int(ScanMode.MANUAL), command=self.change_mode,
-            cursor="hand2", style='Wild.TRadiobutton'
-        )
-        mode3 = ttk.Radiobutton(
-            frame, text="Enter glob    ", variable=self.scan_mode,
-            value=int(ScanMode.GLOB), command=self.change_mode,
-            cursor="hand2", style='Wild.TRadiobutton'
-        )
-        mode1.pack()
-        mode2.pack()
-        mode3.pack()
+        self.SetBackgroundColour(bg)
+        self.SetForegroundColour(fg)
+        self.SetFont(font)
 
-        Message(frame, text="", bg="#23272A").pack()
+        panel_main = create_panel_with_margin(self, self.margin_main)
+        sizer_main = wx.BoxSizer(wx.HORIZONTAL)
+        panel_main.SetSizer(sizer_main)
 
-        # Path input
-        path_text = Message(
-            frame, text="(Separate input with '|')\nEnter path(s) / glob:",
-            bg=bg, fg=fg, relief="groove", font=font
+        # Add controls
+
+        self.controls_panel = panel_controls = wx.Panel(panel_main)
+        self.controls_panel_sizer = sizer_controls = wx.BoxSizer(wx.VERTICAL)
+        panel_controls.SetSizer(sizer_controls)
+        panel_controls.SetBackgroundColour(bg)
+        panel_controls.SetForegroundColour(fg)
+        panel_controls.SetMinSize((self.width_paths_input, -1))
+        sizer_main.Add(panel_controls, 0, wx.EXPAND)
+
+        # Scan mode
+        label = wx.StaticText(panel_controls, label="Scan mode")
+        scan_auto = wx.RadioButton(
+            panel_controls, label="Automatic", name='automatic',
+            style=wx.RB_GROUP
         )
-        path_text.config(width=130, justify="center")
-        path_text.pack()
-
-        self.path_input = Entry(
-            frame, exportselection=0, textvariable=self.path, state="disabled",
-            cursor="arrow", bg="white", disabledbackground=bg, width=40,
-            font=font
+        scan_manual = wx.RadioButton(
+            panel_controls, label="Enter path(s)", name='manual'
         )
-        self.path_input.pack()
-
-        Message(frame, text="", bg=bg).pack()
-
-        # run button
-        submit_button = Button(
-            frame, text="Run", command=self.start_scan,
-            cursor="hand2", bg=bg, fg=fg, font=font
+        scan_glob = wx.RadioButton(
+            panel_controls, label="Enter glob", name='glob'
         )
-        submit_button.config(width=20)
-        submit_button.pack()
+        sizer_controls.Add(label)
+        sizer_controls.AddSpacer(self.margin_control_label)
+        sizer_controls.Add(scan_auto)
+        sizer_controls.Add(scan_manual)
+        sizer_controls.Add(scan_glob)
+        panel_controls.Bind(wx.EVT_RADIOBUTTON, self.change_scan_mode)
 
-        # graph button
-        graph_button = Button(
-            frame, text="Create graph", command=self.create_graph,
-            cursor="hand2", bg=bg, fg=fg, font=font
+        # Path/glob input
+        self.path_or_glob_panel = panel_path = wx.Panel(panel_controls)
+        sizer_path = wx.BoxSizer(wx.VERTICAL)
+        panel_path.SetSizer(sizer_path)
+        panel_path.SetForegroundColour(fg)
+        panel_path.Hide()  # Initially hidden bc automatic is selected
+
+        label = wx.StaticText(
+            panel_path, label="Enter path(s) / glob (separate with | )"
         )
-        graph_button.config(width=20)
-        graph_button.pack()
-
-        self.color_button = Button(
-            frame, text='Select Color', command=self.get_color,
-            bg=self.graph_color, font=font
+        self.path_input = path_input = wx.TextCtrl(
+            panel_path, size=(self.width_paths_input, -1)
         )
-        self.color_button.config(width=20)
-        self.color_button.pack()
+        path_input.SetBackgroundColour(bg)
+        path_input.SetForegroundColour(fg)
+        sizer_path.AddSpacer(self.margin_control)
+        sizer_path.Add(label)
+        sizer_path.AddSpacer(self.margin_control_label)
+        sizer_path.Add(path_input)
 
-        # csv button
-        graph_button = Button(
-            frame, text="Export as csv", command=self.create_csv,
-            cursor="hand2", bg=bg, fg=fg, font=font)
-        graph_button.config(width=20)
-        graph_button.pack()
+        sizer_controls.Add(panel_path)
 
-        # output
-        self.log_widget = ScrolledText(
-            frame, bg=self.log_text_color, fg="white", font="Helvetica 11"
+        # button = wx.Button(controls_panel, label="Calculate play time")
+        self.b = button = PlateButton(
+            panel_controls, label="hi",
+            style=PB_STYLE_SQUARE, size=(200, 40)
         )
-        self.log_widget.config(width=120)
-        self.log_widget.pack()
+        button.SetBackgroundColour(element_color)
+        sizer_controls.AddStretchSpacer(1)
+        sizer_controls.Add(button)
 
-        # exit button
-        stop_button = Button(
-            frame, text="Stop scanning", command=self.stop_scan,
-            width=20, bg=bg, fg=fg, font=font
-        )
-        stop_button.pack()
+        # Add log output
+
+        sizer_main.AddSpacer(self.margin_main)
+
+        log = wx.TextCtrl(panel_main, value="HEY THERE", style=wx.TC_MULTILINE)
+        sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
 
     @property
     def log_handler(self):
         return self._log_handler
 
-    def change_mode(self):
-        scan_mode = self.scan_mode.get()
-        if scan_mode == ScanMode.MANUAL:
-            self.path_input.config(state='disabled', cursor="arrow")
+    def change_scan_mode(self, e):
+        self.scan_mode = ScanMode(e.EventObject.Name)
+        if self.scan_mode is ScanMode.AUTOMATIC:
+            self.path_or_glob_panel.Hide()
         else:
-            self.path_input.config(state='normal', cursor="hand2")
-        logger.info(f"Changed mode to {ScanMode(scan_mode)._name_.lower()}")
+            self.path_or_glob_panel.Show()
+        self.controls_panel_sizer.Layout()
+        logger.info(f"Changed mode to {self.scan_mode._name_}")
 
     def start_scan(self):
         if self._scan_thread is None:
@@ -210,16 +205,16 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             self._scan_thread.start()
             self.root.after(100, self.process_queue)
 
+    def stop_scan(self):
+        if self._scan_thread is not None and not self._scan_thread.stopped():
+            logger.info("Cancelling log scan")
+            self._scan_thread.stop()
+
     def process_queue(self):
         try:
             self.playtime_total, self.playtime_days = self._scan_queue.get()
         except queue.Empty:
             self.root.after(100, self.process_queue)
-
-    def stop_scan(self):
-        if self._scan_thread is not None and not self._scan_thread.stopped():
-            logger.info("Cancelling log scan")
-            self._scan_thread.stop()
 
     def get_paths(self) -> Optional[List[Path]]:
         scan_mode = self.scan_mode.get()
