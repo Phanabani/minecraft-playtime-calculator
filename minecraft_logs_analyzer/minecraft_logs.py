@@ -119,11 +119,6 @@ def read_backward_until(
     return None
 
 
-def read_last_line(stream: TextIO):
-    return read_backward_until(stream, os.linesep, stop_after=2,
-                               trim_start=len(os.linesep))
-
-
 def iter_logs(path: Union[str, Path]) -> Generator[Tuple[TextIO, Path, dt.date]]:
     if isinstance(path, str):
         path = Path(path)
