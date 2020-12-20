@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import defaultdict
 import datetime as dt
 from io import TextIOBase, SEEK_END
 import gzip
@@ -9,15 +8,8 @@ import os
 import re
 from pathlib import Path
 import sys
-import threading
 from typing import *
 from typing import Pattern
-from queue import Queue
-
-__all__ = [
-    'PlaytimeCounterThread', 'T_PlaytimePerDay', 'T_ScanResult',
-    'get_default_logs_path'
-]
 
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
@@ -193,44 +185,3 @@ def get_log_timedelta(log: TextIO) -> Optional[dt.timedelta]:
     if end_time < start_time:
         end_time += dt.timedelta(days=1)
     return end_time - start_time
-
-
-class PlaytimeCounterThread(threading.Thread):
-
-    def __init__(self, queue: Queue[T_ScanResult], paths: List[Path],
-                 *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._stop_event = threading.Event()
-        self._queue = queue
-        self._paths = paths
-
-    def stop(self):
-        self._stop_event.set()
-
-    def stopped(self):
-        return self._stop_event.is_set()
-
-    def run(self) -> NoReturn:
-        total_time = dt.timedelta()
-        # Logs for a given date may be split to reduce filesize, so multiple
-        # timedeltas for a date will be summed
-        playtimes: Dict[dt.date, dt.timedelta] = defaultdict(dt.timedelta)
-
-        for path in self._paths:
-            for stream, file, date in iter_logs(path):
-                try:
-                    delta = get_log_timedelta(stream)
-                    if delta is None:
-                        continue
-                    total_time += delta
-                    logger.info(f"{file.name} {delta}")
-                    playtimes[date] += delta
-                    total_time += delta
-                finally:
-                    stream.close()
-                    if self.stopped():
-                        logger.info("Log scan cancelled")
-                        break
-
-        playtimes_sorted = list(sorted(playtimes.items()))
-        self._queue.put((total_time, playtimes_sorted))

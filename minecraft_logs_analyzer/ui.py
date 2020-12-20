@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections import defaultdict
 from csv import writer as csv_writer
 import datetime as dt
 from enum import Enum
@@ -6,6 +8,7 @@ from glob import iglob
 import logging
 from pathlib import Path
 import queue
+import threading
 from typing import *
 
 from matplotlib import pyplot as plt
@@ -56,6 +59,53 @@ class WxLogHandler(logging.Handler):
             raise
         except:
             self.handleError(record)
+
+
+ScanCompleteEvent, EVT_WX_SCAN_COMPLETE = wx.lib.newevent.NewEvent()
+
+class PlaytimeCounterThread(threading.Thread):
+
+    def __init__(self, parent: wx.Window, paths: List[Path], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stop_event = threading.Event()
+        self._parent = parent
+        self._paths = paths
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
+
+    def run(self) -> NoReturn:
+        total_time = dt.timedelta()
+        # Logs for a given date may be split to reduce filesize, so multiple
+        # timedeltas for a date will be summed
+        playtimes: Dict[dt.date, dt.timedelta] = defaultdict(dt.timedelta)
+        cancelled = False
+
+        for path in self._paths:
+            for stream, file, date in iter_logs(path):
+                try:
+                    delta = get_log_timedelta(stream)
+                    if delta is None:
+                        continue
+                    total_time += delta
+                    logger.info(f"{file.name} {delta}")
+                    playtimes[date] += delta
+                    total_time += delta
+                finally:
+                    stream.close()
+                    if self.stopped():
+                        cancelled = True
+                        break
+
+        playtimes_sorted = list(sorted(playtimes.items()))
+        event = ScanCompleteEvent(
+            cancelled=cancelled, total_time=total_time,
+            time_per_day=playtimes_sorted
+        )
+        wx.PostEvent(self._parent, event)
 
 
 def create_panel_with_margin(parent: wx.Window, margin: int):
