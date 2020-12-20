@@ -108,7 +108,7 @@ def read_backward_until(
             stop_after -= 1
         else:
             # Move to the start of the final line
-            stream.seek(cursor + delim_pos + trim_start - 1)
+            stream.seek(max(cursor, 1) + delim_pos + trim_start - 1)
             last_line = stream.read()
             stream.seek(original_pos)
             return last_line
