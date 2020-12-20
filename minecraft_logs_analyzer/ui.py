@@ -92,8 +92,11 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self.scan_mode = ScanMode.AUTOMATIC
         self.path_or_glob = None
 
-        self._pack()
+        self.__DoLayout()
         self._init_logging()
+
+        self.panel_controls.Bind(wx.EVT_RADIOBUTTON, self.change_scan_mode)
+
         self.Show(True)
 
     def _init_logging(self):
@@ -104,7 +107,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         parent_logger.addHandler(self._log_handler)
         self.Bind(EVT_WX_LOG_EVENT, self.onLogEvent)
 
-    def _pack(self):
+    def __DoLayout(self):
         bg = self.background_color
         fg = self.foreground_color
         element_color = self.element_color
@@ -123,8 +126,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
         # Add controls
 
-        self.controls_panel = panel_controls = wx.Panel(panel_main)
-        self.controls_panel_sizer = sizer_controls = wx.BoxSizer(wx.VERTICAL)
+        self.panel_controls = panel_controls = wx.Panel(panel_main)
+        self.sizer_controls = sizer_controls = wx.BoxSizer(wx.VERTICAL)
         panel_controls.SetSizer(sizer_controls)
         panel_controls.SetBackgroundColour(bg)
         panel_controls.SetForegroundColour(fg)
@@ -148,10 +151,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         sizer_controls.Add(scan_auto)
         sizer_controls.Add(scan_manual)
         sizer_controls.Add(scan_glob)
-        panel_controls.Bind(wx.EVT_RADIOBUTTON, self.change_scan_mode)
 
         # Path/glob input
-        self.path_or_glob_panel = panel_path = wx.Panel(panel_controls)
+        self.panel_path = panel_path = wx.Panel(panel_controls)
         sizer_path = wx.BoxSizer(wx.VERTICAL)
         panel_path.SetSizer(sizer_path)
         panel_path.SetForegroundColour(fg)
@@ -200,10 +202,10 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
     def change_scan_mode(self, e):
         self.scan_mode = ScanMode(e.EventObject.Name)
         if self.scan_mode is ScanMode.AUTOMATIC:
-            self.path_or_glob_panel.Hide()
+            self.panel_path.Hide()
         else:
-            self.path_or_glob_panel.Show()
-        self.controls_panel_sizer.Layout()
+            self.panel_path.Show()
+        self.sizer_controls.Layout()
         logger.info(f"Changed mode to {self.scan_mode._name_}")
 
     def start_scan(self):
