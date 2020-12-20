@@ -23,7 +23,7 @@ parent_logger = logging.getLogger('minecraft_logs_analyzer')
 parent_logger.setLevel(logging.INFO)
 logger = logging.getLogger('minecraft_logs_analyzer.ui')
 
-LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOG_FORMAT = '%(levelname)s %(message)s'
 
 
 class ScanMode(Enum):
@@ -137,8 +137,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
     graph_color = '#18aaff'
     log_text_color = '#2C2F33'
 
-    _scan_thread: PlaytimeCounterThread = None
-    _scan_queue: queue.Queue[T_ScanResult] = None
+    _scan_thread: Optional[PlaytimeCounterThread] = None
 
     def __init__(self, parent=None):
         super().__init__(parent, title=self.title, size=(1280, 720))
@@ -152,6 +151,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self.__DoLayout()
         self._init_logging()
 
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        self.Bind(EVT_WX_SCAN_COMPLETE, self.OnScanComplete)
         self.panel_controls.Bind(wx.EVT_RADIOBUTTON, self.OnChangeScanMode)
         self.scan_button.Bind(wx.EVT_BUTTON, self.OnScanButton)
 
@@ -252,6 +253,15 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         log.SetForegroundColour(fg)
         sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
 
+    def OnClose(self, e: wx.Event):
+        """
+        Clean up scanning thread!
+        """
+        if self._scan_thread is not None:
+            self._scan_thread.stop()
+            self._scan_thread.join()
+        self.Destroy()
+
     def OnLogEvent(self, e: WxLogEvent):
         msg = e.message + '\n'
         self.log_window.AppendText(msg)
@@ -270,38 +280,41 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         if self.scanning_state is ScanningState.IDLE:
             self.scanning_state = ScanningState.RUNNING
             self.scan_button.SetLabel("Cancel")
+            self.start_scan()
         elif self.scanning_state is ScanningState.RUNNING:
             self.scanning_state = ScanningState.CANCELLING
             self.scan_button.Disable()
             self.scan_button.SetLabel("Cancelling...")
-        elif self.scanning_state is ScanningState.CANCELLING:
-            self.scanning_state = ScanningState.IDLE
-            self.scan_button.SetLabel(self.text_begin_scan)
+            self.stop_scan()
+
+    def OnScanComplete(self, e: ScanCompleteEvent):
+        cancelled = e.cancelled
+        self._scan_thread = None
+
+        if cancelled:
+            logger.info("Scan cancelled!")
+        else:
+            logger.info('Scan complete!')
+
+        self.scan_button.Enable()
+        self.scan_button.SetLabel(self.text_begin_scan)
 
     def start_scan(self):
         if self._scan_thread is None:
             logger.info("Starting log scan")
-            self._scan_queue = queue.Queue()
             paths = self.get_paths()
             if paths is None:
                 return
-            self._scan_thread = PlaytimeCounterThread(self._scan_queue, paths)
+            self._scan_thread = PlaytimeCounterThread(self, paths)
             self._scan_thread.start()
-            self.root.after(100, self.process_queue)
 
     def stop_scan(self):
         if self._scan_thread is not None and not self._scan_thread.stopped():
             logger.info("Cancelling log scan")
             self._scan_thread.stop()
 
-    def process_queue(self):
-        try:
-            self.playtime_total, self.playtime_days = self._scan_queue.get()
-        except queue.Empty:
-            self.root.after(100, self.process_queue)
-
     def get_paths(self) -> Optional[List[Path]]:
-        scan_mode = self.scan_mode.get()
+        scan_mode = self.scan_mode
         if scan_mode == ScanMode.AUTOMATIC:
             default_logs_path = get_default_logs_path()
             if not default_logs_path.exists():
@@ -311,9 +324,11 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                 return
             return [default_logs_path]
 
+        paths_or_globs = self.path_input.GetValue().split('|')
+
         if scan_mode == ScanMode.MANUAL:
             paths = []
-            for path in self.path.get().split("|"):
+            for path in paths_or_globs:
                 path = Path(path)
                 if not path.exists():
                     logger.error(
@@ -324,9 +339,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             return paths
 
         if scan_mode == ScanMode.GLOB:
-            globs = self.path.get().split("|")
             paths = []
-            for glob in globs:
+            for glob in paths_or_globs:
                 for path in iglob(glob, recursive=True):
                     path = Path(path)
                     paths.append(path)
