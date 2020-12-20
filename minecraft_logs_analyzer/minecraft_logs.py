@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from io import TextIOBase, SEEK_END
+from io import SEEK_END
 import gzip
 import logging
 import os
@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 import sys
 from typing import *
-from typing import Pattern
+from typing import Match, Pattern
 
 logger = logging.getLogger('minecraft_logs_analyzer.minecraft_logs')
 
@@ -52,71 +52,26 @@ def get_default_logs_path() -> Optional[Path]:
         return path
 
 
-def read_backward_until(
-        stream: TextIO, delimiter: Union[str, Pattern], buf_size: int = 32,
-        stop_after: int = 1, trim_start: int = 0
-) -> Optional[str]:
-    """
-    Seek backwards until `delimiter` is found, then read and return the rest
-    of the stream.
+def find_backwards(
+        stream: TextIO, pattern: Pattern, buffer_size: int = 128
+) -> Optional[Match]:
+    pos_init = stream.tell()
+    pos = stream.seek(0, SEEK_END)
+    buffer_last = ''
+    match = None
 
-    :param stream: stream to read from
-    :param delimiter: delimiter marking when to stop reading
-    :param buf_size: number of characters to read/store in buffer while
-        progressing backwards. Ensure this is greater than or equal to the
-        intended length of `delimiter` so that the entire delimiter can be
-        detected
-    :param stop_after: return the result after detecting this many delimiters
-    :param trim_start: If not 0, this many characters will be skipped from the
-        beginning of the output (to return only what comes after delimiter, for
-        instance)
-    :returns: the rest of the stream
-    """
-    if not isinstance(stream, TextIOBase):
-        raise TypeError("stream must be of type TextIO")
-    if not isinstance(delimiter, (str, Pattern)):
-        raise TypeError("delimiter must be of type str or Pattern")
+    while pos > 0:
+        pos = max(pos - buffer_size, 0)
+        stream.seek(pos)
+        buffer = stream.read(buffer_size)
+        matches = list(pattern.finditer(buffer + buffer_last))
+        if matches:
+            match = matches[-1]
+            break
+        buffer_last = buffer
 
-    stop_after -= 1
-    original_pos = stream.tell()
-    cursor = stream.seek(0, SEEK_END)
-    buf = ' ' * (buf_size*2)
-
-    while cursor >= 0:
-        if cursor >= buf_size:
-            cursor -= buf_size
-        else:
-            cursor = 0
-        stream.seek(cursor)
-        # Combine the previous two buffers in case delimiter runs
-        # across two buffers
-        buf = stream.read(buf_size) + buf[:buf_size]
-
-        if isinstance(delimiter, str):
-            delim_pos = buf.rfind(delimiter)
-        else:
-            matches = list(delimiter.finditer(buf))
-            if matches:
-                delim_pos = matches[-1].start()
-            else:
-                delim_pos = -1
-
-        if delim_pos == -1 or delim_pos >= buf_size:
-            # Skip if no delimiter found or if it's in the second half of
-            # the buffer (it will turn up twice as it moves to the end of
-            # the buffer)
-            pass
-        elif stop_after > 0:
-            # Decrement since we found delimiter
-            stop_after -= 1
-        else:
-            # Move to the start of the final line
-            stream.seek(max(cursor, 1) + delim_pos + trim_start - 1)
-            last_line = stream.read()
-            stream.seek(original_pos)
-            return last_line
-    # No match
-    return None
+    stream.seek(pos_init)
+    return match
 
 
 def iter_logs(path: Union[str, Path]) -> Generator[Tuple[Path, dt.date]]:
@@ -137,6 +92,7 @@ def open_log(file: Path) -> TextIO:
     if file.suffix == '.gz':
         return gzip.open(file, 'rt', errors='ignore')
     if file.suffix == '.log':
+        # noinspection PyTypeChecker
         return open(file, 'rt', errors='ignore')
 
 
@@ -149,7 +105,7 @@ def get_log_timedelta(log: Path) -> Optional[dt.timedelta]:
                 f"Unable to find start time; skipping (file={log.name})"
             )
             return
-        end_time = time_pattern.search(read_backward_until(log, time_pattern))
+        end_time = find_backwards(log, time_pattern)
         if end_time is None:
             logger.warning(
                 f"Unable to find end time; skipping (file={log.name})"
