@@ -44,7 +44,7 @@ def get_default_logs_path() -> Optional[Path]:
             return
         return path
 
-    if  platform == 'linux':
+    if platform == 'linux':
         path = Path('~/.minecraft/logs')
         if not path.exists():
             logger.error(error_msg)
