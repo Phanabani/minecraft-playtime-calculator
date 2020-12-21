@@ -10,7 +10,10 @@ from pathlib import Path
 import threading
 from typing import *
 
-from matplotlib import pyplot as plt
+try:
+    from matplotlib import pyplot as plt
+except ImportError:
+    plt = None
 import wx
 import wx.lib.newevent
 from wx.lib.platebtn import PB_STYLE_SQUARE
@@ -150,6 +153,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self.playtime_days: Optional[T_TimePerDay] = None
         self.scan_mode = ScanMode.AUTOMATIC
         self.scanning_state = ScanningState.IDLE
+        self.graph_months = None
+        self.graph_times = None
 
         self.__DoLayout()
         self._init_logging()
@@ -158,6 +163,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self.Bind(EVT_WX_SCAN_COMPLETE, self.OnScanComplete)
         self.panel_controls.Bind(wx.EVT_RADIOBUTTON, self.OnChangeScanMode)
         self.scan_button.Bind(wx.EVT_BUTTON, self.OnScanButton)
+        self.graph_button.Bind(wx.EVT_BUTTON, self.OnGraphButton)
 
         self.Show(True)
 
@@ -230,6 +236,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         )
         path_input.SetBackgroundColour(bg)
         path_input.SetForegroundColour(fg)
+
         sizer_path.AddSpacer(self.margin_control)
         sizer_path.Add(label)
         sizer_path.AddSpacer(self.margin_control_label)
@@ -237,14 +244,23 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
         sizer_controls.Add(panel_path)
 
-        # button = wx.Button(controls_panel, label="Calculate play time")
-        self.scan_button = button = PlateButton(
+        sizer_controls.AddStretchSpacer(1)
+
+        self.scan_button = scan_button = PlateButton(
             panel_controls, label=self.text_begin_scan,
             style=PB_STYLE_SQUARE, size=(-1, 60)
         )
-        button.SetBackgroundColour(element_color)
-        sizer_controls.AddStretchSpacer(1)
-        sizer_controls.Add(button, 0, wx.EXPAND)
+        scan_button.SetBackgroundColour(element_color)
+        self.graph_button = graph_button = PlateButton(
+            panel_controls, label="Show graph",
+            style=PB_STYLE_SQUARE, size=(-1, 60)
+        )
+        graph_button.SetBackgroundColour(element_color)
+        graph_button.Disable()
+
+        sizer_controls.Add(scan_button, 0, wx.EXPAND)
+        sizer_controls.AddSpacer(self.margin_main // 2)
+        sizer_controls.Add(graph_button, 0, wx.EXPAND)
 
         # Add log output
 
@@ -317,6 +333,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         if not e.success:
             return
 
+        self.graph_button.Enable()
+
         cancelled = e.cancelled
         self.playtime_total = e.total_time
         self.playtime_days = e.time_per_day
@@ -328,6 +346,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         else:
             logger.info("Scan complete!")
         logger.info(f"Total time: {hours:.2f} hours ({days:.2f} days)")
+
+    def OnGraphButton(self, e: wx.CommandEvent):
+        self.create_graph()
 
     def update_scanning_state(self, new_state: ScanningState):
         self.scanning_state = new_state
@@ -355,6 +376,12 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                 logger.error("No files to scan. Scan aborted")
                 return
             logger.info("Starting log scan")
+
+            self.playtime_total = None
+            self.playtime_days = None
+            self.graph_months = None
+            self.graph_times = None
+
             self._scan_thread = PlaytimeCounterThread(self, paths)
             self._scan_thread.start()
             self.update_scanning_state(ScanningState.RUNNING)
@@ -404,25 +431,76 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                 return
             return paths
 
+    def prepare_graph_data(self) -> NoReturn:
+
+        if self.graph_months is not None and self.graph_times is not None:
+            return
+
+        def month_to_int(date: dt.date) -> int:
+            """Get the month number counting from year 0 month 0"""
+            return date.year * 12 + (date.month - 1)
+
+        def int_to_month(month: int) -> dt.date:
+            return dt.date(year=month//12, month=(month%12)+1, day=1)
+
+        def add_month(month: Union[dt.date, int]):
+            if isinstance(month, int):
+                month = int_to_month(month)
+            months.append(month.strftime('%Y-%m'))
+
+        months: List[str] = []
+        times: List[dt.timedelta] = []
+        last_month: int = 0
+        for day, time in self.playtime_days:
+            # We can safely assume dates are sorted
+            month = month_to_int(day)
+            if month > last_month:
+                # Start a new month entry
+                if last_month != 0:
+                    for i in range(last_month+1, month):
+                        # Add in missing months
+                        add_month(i)
+                        times.append(dt.timedelta())
+                add_month(month)
+                times.append(dt.timedelta())
+            # Sum up time for this month
+            times[-1] += time
+            last_month = month
+        self.graph_months = months
+        self.graph_times = [t.total_seconds() / 3600 for t in times]
+
     def create_graph(self):
+        if plt is None:
+            logger.warning(
+                "matplotlib is not installed, so graphing is unavailable"
+            )
+            return
+        if not self.playtime_days:
+            logger.warning(
+                "Not enough data to create a graph; one full month is "
+                "needed"
+            )
+            return
+
         try:
-            if not self.playtime_days:
-                logger.warning(
-                    "Not enough data to create a graph; one full month is "
-                    "needed"
-                )
-                return
-            data_list_dates = list(self.graph_data_collection.keys())
-            data_list_hour = list(self.graph_data_collection.values())
-            plt.bar(data_list_dates, data_list_hour, color=self.graph_color)
 
-            plt.xticks(rotation='vertical')
+            self.prepare_graph_data()
 
-            plt.xlabel("Months")
-            plt.ylabel("Hours")
-            plt.title(f"Total playtime:\n{self.playtime_total}")
-            plt.draw()
+            fig, ax = plt.subplots(figsize=(16, 9))
+
+            ax.bar(self.graph_months, self.graph_times, color=self.graph_color)
+
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=70)
+
+            ax.set_xlabel("Months")
+            ax.set_ylabel("Hours")
+
+            hours = self.playtime_total.total_seconds() / 3600
+            days = hours / 24
+            ax.set_title(f"Total playtime:\n{hours:.2f} hours ({days:.2f} days)")
+
             plt.show()
+
         except Exception:
             logger.error(
                 "An unexpected error occurred while creating the graph. "
