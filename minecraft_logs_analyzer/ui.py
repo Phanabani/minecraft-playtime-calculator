@@ -375,14 +375,17 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                 return
             return [default_logs_path]
 
-        paths_or_globs = self.path_input.GetValue().split('|').strip(' ')
+        paths_or_globs = self.path_input.GetValue()
+        if not paths_or_globs:
+            return
+        paths_or_globs = paths_or_globs.split('|')
 
         if scan_mode == ScanMode.MANUAL:
             paths = []
             for path in paths_or_globs:
-                path = Path(path)
+                path = Path(path.strip(' '))
                 if not path.exists():
-                    logger.error(f"The specified path does not exist: {path}")
+                    logger.error(f"The specified directory does not exist: {path}")
                     return
                 paths.append(path)
             return paths
@@ -390,11 +393,11 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         if scan_mode == ScanMode.GLOB:
             paths = []
             for glob in paths_or_globs:
-                for path in iglob(glob):
+                for path in iglob(glob.strip(' ')):
                     path = Path(path)
                     paths.append(path)
             if not paths:
-                logger.error(f"No files were found")
+                logger.error(f"The specified file(s) do not exist")
                 return
             return paths
 
