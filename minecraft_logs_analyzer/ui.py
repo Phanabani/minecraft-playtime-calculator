@@ -85,22 +85,30 @@ class PlaytimeCounterThread(threading.Thread):
         playtimes: Dict[dt.date, dt.timedelta] = defaultdict(dt.timedelta)
         cancelled = False
 
-        for path in self._paths:
-            for file, date in iter_logs(path):
-                if self.stopped():
-                    cancelled = True
-                    break
-                delta = get_log_timedelta(file)
-                if delta is None:
-                    continue
-                logger.info(f"{file.name} {delta}")
-                playtimes[date] += delta
-                total_time += delta
+        try:
+            for path in self._paths:
+                for file, date in iter_logs(path):
+                    if self.stopped():
+                        cancelled = True
+                        break
+                    delta = get_log_timedelta(file)
+                    if delta is None:
+                        continue
+                    logger.info(f"{file.name} {delta}")
+                    playtimes[date] += delta
+                    total_time += delta
+        except:
+            logger.error(
+                "Unexpected error while scanning! Aborting.", exc_info=True
+            )
+            event = ScanCompleteEvent(success=False)
+            wx.PostEvent(self._parent, event)
+            return
 
         playtimes_sorted = list(sorted(playtimes.items()))
         event = ScanCompleteEvent(
-            cancelled=cancelled, total_time=total_time,
-            time_per_day=playtimes_sorted
+            success=True, cancelled=cancelled,
+            total_time=total_time, time_per_day=playtimes_sorted
         )
         wx.PostEvent(self._parent, event)
 
@@ -304,6 +312,10 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     def OnScanComplete(self, e: ScanCompleteEvent):
         self._scan_thread = None
+        self.update_scanning_state(ScanningState.IDLE)
+        if not e.success:
+            return
+
         cancelled = e.cancelled
         self.playtime_total = e.total_time
         self.playtime_days = e.time_per_day
@@ -315,8 +327,6 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         else:
             logger.info("Scan complete!")
         logger.info(f"Total time: {hours:.2f} hours ({days:.2f} days)")
-
-        self.update_scanning_state(ScanningState.IDLE)
 
     def update_scanning_state(self, new_state: ScanningState):
         self.scanning_state = new_state
@@ -332,7 +342,14 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     def start_scan(self):
         if self._scan_thread is None:
-            paths = self.get_paths()
+            try:
+                paths = self.get_paths()
+            except:
+                logger.error(
+                    "Unexpected error while getting paths! Scan aborted.",
+                    exc_info=True
+                )
+                return
             if paths is None:
                 logger.error("No logs path is specified!")
                 return
@@ -365,9 +382,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             for path in paths_or_globs:
                 path = Path(path)
                 if not path.exists():
-                    logger.error(
-                        f"The specified path does not exist: {path}"
-                    )
+                    logger.error(f"The specified path does not exist: {path}")
                     return
                 paths.append(path)
             return paths
