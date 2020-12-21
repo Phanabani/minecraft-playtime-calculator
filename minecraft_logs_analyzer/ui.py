@@ -93,7 +93,6 @@ class PlaytimeCounterThread(threading.Thread):
                 delta = get_log_timedelta(file)
                 if delta is None:
                     continue
-                total_time += delta
                 logger.info(f"{file.name} {delta}")
                 playtimes[date] += delta
                 total_time += delta
