@@ -129,10 +129,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
     font_size = 11
     background_color = '#23272A'
     outline_color = '#2C2F33'
-    foreground_color = 'white'
+    foreground_color = '#BAC2D2'
     element_color = '#353C40'
-    graph_color = '#18aaff'
-    log_text_color = '#2C2F33'
+    graph_color = '#18AAFF'
 
     def __init__(self, parent=None):
         super().__init__(parent, title=self.title, size=(1280, 720))
