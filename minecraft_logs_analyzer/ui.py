@@ -126,6 +126,7 @@ def create_panel_with_margin(parent: wx.Window, margin: int):
     return panel
 
 
+# noinspection PyPep8Naming
 class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     title = "Minecraft playtime calculator - by Quinten Cabo and Hawkpath"
@@ -164,6 +165,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         self.panel_controls.Bind(wx.EVT_RADIOBUTTON, self.OnChangeScanMode)
         self.scan_button.Bind(wx.EVT_BUTTON, self.OnScanButton)
         self.graph_button.Bind(wx.EVT_BUTTON, self.OnGraphButton)
+        self.csv_button.Bind(wx.EVT_BUTTON, self.OnCSVButton)
 
         self.Show(True)
 
@@ -244,6 +246,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
         sizer_controls.Add(panel_path)
 
+        # Buttons
+
         sizer_controls.AddStretchSpacer(1)
 
         self.scan_button = scan_button = PlateButton(
@@ -251,6 +255,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             style=PB_STYLE_SQUARE, size=(-1, 60)
         )
         scan_button.SetBackgroundColour(element_color)
+
         self.graph_button = graph_button = PlateButton(
             panel_controls, label="Show graph",
             style=PB_STYLE_SQUARE, size=(-1, 60)
@@ -258,9 +263,18 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         graph_button.SetBackgroundColour(element_color)
         graph_button.Disable()
 
+        self.csv_button = csv_button = PlateButton(
+            panel_controls, label="Save CSV file",
+            style=PB_STYLE_SQUARE, size=(-1, 60)
+        )
+        csv_button.SetBackgroundColour(element_color)
+        csv_button.Disable()
+
         sizer_controls.Add(scan_button, 0, wx.EXPAND)
         sizer_controls.AddSpacer(self.margin_main // 2)
         sizer_controls.Add(graph_button, 0, wx.EXPAND)
+        sizer_controls.AddSpacer(self.margin_main // 2)
+        sizer_controls.Add(csv_button, 0, wx.EXPAND)
 
         # Add log output
 
@@ -333,7 +347,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         if not e.success:
             return
 
+        self.scan_button.Enable()
         self.graph_button.Enable()
+        self.csv_button.Enable()
 
         cancelled = e.cancelled
         self.playtime_total = e.total_time
@@ -349,6 +365,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     def OnGraphButton(self, e: wx.CommandEvent):
         self.create_graph()
+
+    def OnCSVButton(self, e: wx.CommandEvent):
+        self.create_csv()
 
     def update_scanning_state(self, new_state: ScanningState):
         self.scanning_state = new_state
@@ -508,25 +527,30 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                 exc_info=True
             )
 
-    def get_color(self):
-        color = askcolor()
-        self.graph_color = color[1]
-        self.color_button.config(bg=self.graph_color)
-        logger.info(f"Color changed to {self.graph_color}")
-
     def create_csv(self):
-        if len(self.csv_data) != 0:
-            filename = filedialog.asksaveasfilename(
-                initialdir="/desktop", title="Save file:",
-                initialfile="minecraft_playtime.csv",
-                filetypes=(("csv files", "*.csv"), ("all files", "*.*"))
+        if self.playtime_days is None:
+            logger.error(
+                "No time data has been collected yet. Run a scan first."
             )
-            with open(filename, newline='', mode="w+") as csvfile:
-                writer = csv_writer(csvfile, delimiter=',')
-                writer.writerow(["Day", "Hours"])
-                writer.writerows(self.csv_data.items())
+            return
+
+        with wx.FileDialog(
+                self, "Save CSV file", defaultFile='minecraft_playtime.csv',
+                wildcard='CSV files (*.csv)|*.csv|All files|*.*',
+                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+        ) as file_dialog:
+            if file_dialog.ShowModal() == wx.ID_CANCEL:
+                return
+            path = file_dialog.GetPath()
+
+        try:
+            with open(path, 'w') as csv_file:
+                writer = csv_writer(csv_file, delimiter=',')
+                writer.writerow(["date", "seconds"])
+                for day, time in self.playtime_days:
+                    writer.writerow([str(day), int(time.total_seconds())])
+        except IOError:
+            logger.error(f"Failed to save file at {path}", exc_info=True)
         else:
-            logger.warning(
-                "Not enough data to create a CSV file. Make sure to start a "
-                "scan first."
-            )
+            logger.info(f"Saved CSV file at {path}")
+
