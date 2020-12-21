@@ -75,17 +75,29 @@ def find_backwards(
     return match
 
 
-def iter_logs(path: Union[str, Path]) -> Generator[Tuple[Path, dt.date]]:
-    if isinstance(path, str):
-        path = Path(path)
-    elif not isinstance(path, Path):
+def parse_log_name(file: Path) -> Optional[dt.date]:
+    name_match = log_name_pattern.fullmatch(file.name)
+    if not name_match:
+        return None
+    return dt.date.fromisoformat(name_match.group('date'))
+
+
+def iter_logs(dir_or_file: Union[str, Path]) -> Generator[Tuple[Path, dt.date]]:
+    if isinstance(dir_or_file, str):
+        dir_or_file = Path(dir_or_file)
+    elif not isinstance(dir_or_file, Path):
         raise TypeError("path must be of type str or Path.")
 
-    for file in path.iterdir():
-        name_match = log_name_pattern.fullmatch(file.name)
-        if not name_match:
+    if dir_or_file.is_file():
+        date = parse_log_name(dir_or_file)
+        if date is not None:
+            yield dir_or_file, date
+        return
+
+    for file in dir_or_file.iterdir():
+        date = parse_log_name(file)
+        if date is None:
             continue
-        date = dt.date.fromisoformat(name_match.group('date'))
         yield file, date
 
 
