@@ -7,6 +7,34 @@ PlateButtonBase = PlateButton
 
 
 class PlateButton(PlateButtonBase):
+    """
+    This is a kinda bootleggy subclass of PlateButton whose sole purpose is to
+    fix like 5 lines of bugs. This unfortunately means entire method bodies
+    had to be copy/pasted.
+
+    Thanks to wx.lib.checkbox for the EVT_SIZE smearing fix.
+    """
+
+    def __init__(self, parent, id=wx.ID_ANY, label='', bmp=None,
+                 pos=wx.DefaultPosition, size=wx.DefaultSize,
+                 style=PB_STYLE_DEFAULT, name=wx.ButtonNameStr):
+        """Create a PlateButton
+
+        :keyword string `label`: Buttons label text
+        :keyword wx.Bitmap `bmp`: Buttons bitmap
+        :keyword `style`: Button style
+        """
+        super().__init__(parent, id, label, bmp, pos, size, style, name)
+
+        self.Bind(wx.EVT_SIZE, lambda evt: self.Refresh())
+
+        self.Unbind(wx.EVT_LEAVE_WINDOW)
+        self.Bind(
+            wx.EVT_LEAVE_WINDOW,
+            # NOTE For some reason this was originally scheduled 80 ms
+            # in the future?? why?!
+            lambda evt: self.__LeaveWindow()
+        )
 
     def __DrawBitmap(self, gc):
         """Draw the bitmap if one has been set
@@ -26,6 +54,7 @@ class PlateButton(PlateButtonBase):
             gc.DrawBitmap(bmp, 6, ypos, bmp.GetMask() is not None)
             return bw + 6
         else:
+            # NOTE base class returns 6 here, which screws with centering
             return 0
 
     def __DrawButton(self):
