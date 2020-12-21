@@ -169,10 +169,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         bg = self.background_color
         fg = self.foreground_color
         element_color = self.element_color
-        font = wx.Font(
-            self.font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
-            wx.FONTWEIGHT_NORMAL, faceName=''
-        )
+        font = self._get_main_font()
+        log_font = self._get_monospace_font()
 
         self.SetBackgroundColour(bg)
         self.SetForegroundColour(fg)
@@ -252,7 +250,33 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         )
         log.SetBackgroundColour(element_color)
         log.SetForegroundColour(fg)
+        log.SetFont(log_font)
         sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
+
+    def _get_font(self, face_name: str = ''):
+        return wx.Font(
+            self.font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
+            wx.FONTWEIGHT_NORMAL, faceName=face_name
+        )
+
+    def _get_system_fonts(self, monospace=False):
+        fonts = wx.FontEnumerator()
+        fonts.EnumerateFacenames(wx.FONTENCODING_SYSTEM, fixedWidthOnly=monospace)
+        return fonts.GetFacenames(wx.FONTENCODING_SYSTEM, fixedWidthOnly=monospace)
+
+    def _get_main_font(self):
+        fonts = self._get_system_fonts()
+        if 'Arial' in fonts:
+            return self._get_font('Arial')
+        return self._get_font()
+
+    def _get_monospace_font(self):
+        fonts = self._get_system_fonts(monospace=True)
+        if 'Consolas' in fonts:
+            return self._get_font('Consolas')
+        if fonts:
+            return self._get_font(fonts[0])
+        return self._get_font()
 
     def OnClose(self, e: wx.Event):
         """
