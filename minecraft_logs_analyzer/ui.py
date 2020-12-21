@@ -134,16 +134,14 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
     graph_color = '#18aaff'
     log_text_color = '#2C2F33'
 
-    _scan_thread: Optional[PlaytimeCounterThread] = None
-
     def __init__(self, parent=None):
         super().__init__(parent, title=self.title, size=(1280, 720))
         self.SetMinSize((800, 400))
 
+        self._scan_thread: Optional[PlaytimeCounterThread] = None
         self.playtime_total: Optional[dt.timedelta] = None
         self.playtime_days: Optional[T_TimePerDay] = None
         self.scan_mode = ScanMode.AUTOMATIC
-        self.path_or_glob = None
         self.scanning_state = ScanningState.IDLE
 
         self.__DoLayout()
@@ -306,13 +304,18 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             self.stop_scan()
 
     def OnScanComplete(self, e: ScanCompleteEvent):
-        cancelled = e.cancelled
         self._scan_thread = None
+        cancelled = e.cancelled
+        self.playtime_total = e.total_time
+        self.playtime_days = e.time_per_day
+        hours = self.playtime_total.total_seconds() / 3600
+        days = hours / 24
 
         if cancelled:
             logger.info("Scan cancelled!")
         else:
-            logger.info('Scan complete!')
+            logger.info("Scan complete!")
+        logger.info(f"Total time: {hours:.2f} hours ({days:.2f} days)")
 
         self.update_scanning_state(ScanningState.IDLE)
 
