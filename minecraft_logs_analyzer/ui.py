@@ -396,7 +396,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         if scan_mode == ScanMode.GLOB:
             paths = []
             for glob in paths_or_globs:
-                for path in iglob(glob.strip(' ')):
+                for path in iglob(glob.strip(' '), recursive=True):
                     path = Path(path)
                     paths.append(path)
             if not paths:
