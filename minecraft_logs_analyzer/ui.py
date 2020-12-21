@@ -139,9 +139,10 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     def __init__(self, parent=None):
         super().__init__(parent, title=self.title, size=(1280, 720))
+        self.SetMinSize((800, 400))
+
         self.playtime_total: Optional[dt.timedelta] = None
         self.playtime_days: Optional[T_TimePerDay] = None
-
         self.scan_mode = ScanMode.AUTOMATIC
         self.path_or_glob = None
         self.scanning_state = ScanningState.IDLE
@@ -198,7 +199,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             style=wx.RB_GROUP
         )
         scan_manual = wx.RadioButton(
-            panel_controls, label="Enter path(s)", name='manual'
+            panel_controls, label="Enter directories", name='manual'
         )
         scan_glob = wx.RadioButton(
             panel_controls, label="Enter glob", name='glob'
@@ -217,8 +218,10 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         panel_path.Hide()  # Initially hidden bc automatic is selected
 
         label = wx.StaticText(
-            panel_path, label="Enter path(s) / glob (separate with | )"
+            panel_path,
+            label="Enter directories / globs\n(separate multiple with | )"
         )
+        label.Wrap(panel_controls.Size[0])
         self.path_input = path_input = wx.TextCtrl(
             panel_path, size=(self.width_paths_input, -1)
         )
