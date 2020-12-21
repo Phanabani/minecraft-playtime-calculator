@@ -201,10 +201,10 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             style=wx.RB_GROUP
         )
         scan_manual = wx.RadioButton(
-            panel_controls, label="Enter directories", name='manual'
+            panel_controls, label="Specify directories", name='manual'
         )
         scan_glob = wx.RadioButton(
-            panel_controls, label="Enter files/globs", name='glob'
+            panel_controls, label="Specify files/globs", name='glob'
         )
         sizer_controls.Add(label)
         sizer_controls.AddSpacer(self.margin_control_label)
@@ -221,7 +221,8 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
 
         label = wx.StaticText(
             panel_path,
-            label="Enter directories / files / globs\n(separate multiple with | )"
+            label="Enter directories / files / globs to scan\n"
+                  "(separate multiple with | )"
         )
         label.Wrap(panel_controls.Size[0])
         self.path_input = path_input = wx.TextCtrl(
@@ -346,12 +347,12 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                 paths = self.get_paths()
             except:
                 logger.error(
-                    "Unexpected error while getting paths! Scan aborted.",
+                    "Unexpected error while getting paths! Scan aborted",
                     exc_info=True
                 )
                 return
             if paths is None:
-                logger.error("No files to scan. Scan aborted.")
+                logger.error("No files to scan. Scan aborted")
                 return
             logger.info("Starting log scan")
             self._scan_thread = PlaytimeCounterThread(self, paths)
@@ -385,7 +386,9 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             for path in paths_or_globs:
                 path = Path(path.strip(' '))
                 if not path.exists():
-                    logger.error(f"The specified directory does not exist: {path}")
+                    logger.error(
+                        f"The specified directory does not exist: {path}"
+                    )
                     return
                 paths.append(path)
             return paths
@@ -397,7 +400,7 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
                     path = Path(path)
                     paths.append(path)
             if not paths:
-                logger.error(f"The specified file(s) do not exist")
+                logger.error(f"The specified file(s) could not be found")
                 return
             return paths
 
