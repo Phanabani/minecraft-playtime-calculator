@@ -20,6 +20,7 @@ from wx.lib.platebtn import PB_STYLE_SQUARE
 
 from .minecraft_logs import *
 from .plate_button import PlateButton
+from .wx_utils import *
 
 parent_logger = logging.getLogger('minecraft_logs_analyzer')
 parent_logger.setLevel(logging.INFO)
@@ -40,33 +41,11 @@ class ScanningState(Enum):
     CANCELLING = 2
 
 
-WxLogEvent, EVT_WX_LOG_EVENT = wx.lib.newevent.NewEvent()
-
-
-class WxLogHandler(logging.Handler):
-
-    def __init__(self, destination: wx.Window, level: int = logging.NOTSET):
-        super().__init__(level=level)
-        self.destination = destination
-
-    def flush(self):
-        pass
-
-    def emit(self, record: logging.LogRecord):
-        try:
-            msg = self.format(record)
-            evt = WxLogEvent(message=msg, levelname=record.levelname)
-            wx.PostEvent(self.destination, evt)
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except:
-            self.handleError(record)
-
-
 T_TimePerDay = List[Tuple[dt.date, dt.timedelta]]
 ScanCompleteEvent, EVT_WX_SCAN_COMPLETE = wx.lib.newevent.NewEvent()
 
 
+# noinspection PyBroadException
 class PlaytimeCounterThread(threading.Thread):
 
     def __init__(self, parent: wx.Window, paths: List[Path], *args, **kwargs):
@@ -116,17 +95,7 @@ class PlaytimeCounterThread(threading.Thread):
         wx.PostEvent(self._parent, event)
 
 
-def create_panel_with_margin(parent: wx.Window, margin: int):
-    margin_panel = wx.Panel(parent)
-    margin_sizer = wx.BoxSizer()
-    margin_panel.SetSizer(margin_sizer)
-
-    panel = wx.Panel(margin_panel)
-    margin_sizer.Add(panel, 1, wx.ALL | wx.EXPAND, margin)
-    return panel
-
-
-# noinspection PyPep8Naming
+# noinspection PyPep8Naming,PyUnusedLocal,PyBroadException
 class MinecraftLogsAnalyzerFrame(wx.Frame):
 
     title = "Minecraft playtime calculator - by Quinten Cabo and Hawkpath"
@@ -181,8 +150,11 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         bg = self.background_color
         fg = self.foreground_color
         element_color = self.element_color
-        font = self._get_main_font()
-        log_font = self._get_monospace_font()
+        font = try_get_font(['Helvetica 10', 'Arial'], self.font_size)
+        log_font = try_get_font(
+            ['Consolas', 'Courier', 'Monospace'], self.font_size,
+            monospace=True
+        )
 
         self.SetBackgroundColour(bg)
         self.SetForegroundColour(fg)
@@ -287,31 +259,6 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         log.SetForegroundColour(fg)
         log.SetFont(log_font)
         sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
-
-    def _get_font(self, face_name: str = ''):
-        return wx.Font(
-            self.font_size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL,
-            wx.FONTWEIGHT_NORMAL, faceName=face_name
-        )
-
-    def _get_system_fonts(self, monospace=False):
-        fonts = wx.FontEnumerator()
-        fonts.EnumerateFacenames(wx.FONTENCODING_SYSTEM, fixedWidthOnly=monospace)
-        return fonts.GetFacenames(wx.FONTENCODING_SYSTEM, fixedWidthOnly=monospace)
-
-    def _get_main_font(self):
-        fonts = self._get_system_fonts()
-        if 'Arial' in fonts:
-            return self._get_font('Arial')
-        return self._get_font()
-
-    def _get_monospace_font(self):
-        fonts = self._get_system_fonts(monospace=True)
-        if 'Consolas' in fonts:
-            return self._get_font('Consolas')
-        if fonts:
-            return self._get_font(fonts[0])
-        return self._get_font()
 
     def OnClose(self, e: wx.Event):
         """
