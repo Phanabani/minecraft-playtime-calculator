@@ -499,11 +499,17 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             path = file_dialog.GetPath()
 
         try:
-            with open(path, 'w') as csv_file:
+            with open(path, 'w', newline='') as csv_file:
                 writer = csv_writer(csv_file, delimiter=',')
                 writer.writerow(["date", "seconds"])
                 for day, time in self.playtime_days:
                     writer.writerow([str(day), int(time.total_seconds())])
+        except PermissionError:
+            logger.error(
+                f"Failed to save file at {path}. This is probably because you "
+                f"already have the file open in Excel (or another program). "
+                f"Close any other program with this file open to overwrite it."
+            )
         except IOError:
             logger.error(f"Failed to save file at {path}", exc_info=True)
         else:
