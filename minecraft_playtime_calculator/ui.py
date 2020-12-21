@@ -96,9 +96,9 @@ class PlaytimeCounterThread(threading.Thread):
 
 
 # noinspection PyPep8Naming,PyUnusedLocal,PyBroadException
-class MinecraftLogsAnalyzerFrame(wx.Frame):
+class MinecraftPlaytimeCalculatorFrame(wx.Frame):
 
-    title = "Minecraft playtime calculator - by Quinten Cabo and Hawkpath"
+    title = "Minecraft Playtime Calculator - by Quinten Cabo and Hawkpath"
 
     margin_main = 20
     margin_control = 20

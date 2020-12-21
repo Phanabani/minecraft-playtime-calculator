@@ -5,4 +5,4 @@ except:
     pass
 
 from .minecraft_logs import *
-from .ui import MinecraftLogsAnalyzerFrame
+from .ui import MinecraftPlaytimeCalculatorFrame
