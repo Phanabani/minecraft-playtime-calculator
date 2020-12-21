@@ -272,17 +272,11 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         else:
             self.panel_path.Show()
         self.sizer_controls.Layout()
-        logger.info(f"Changed mode to {self.scan_mode._name_}")
 
     def OnScanButton(self, e: wx.CommandEvent):
         if self.scanning_state is ScanningState.IDLE:
-            self.scanning_state = ScanningState.RUNNING
-            self.scan_button.SetLabel("Cancel")
             self.start_scan()
         elif self.scanning_state is ScanningState.RUNNING:
-            self.scanning_state = ScanningState.CANCELLING
-            self.scan_button.Disable()
-            self.scan_button.SetLabel("Cancelling...")
             self.stop_scan()
 
     def OnScanComplete(self, e: ScanCompleteEvent):
@@ -294,21 +288,35 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
         else:
             logger.info('Scan complete!')
 
-        self.scan_button.Enable()
-        self.scan_button.SetLabel(self.text_begin_scan)
+        self.update_scanning_state(ScanningState.IDLE)
+
+    def update_scanning_state(self, new_state: ScanningState):
+        self.scanning_state = new_state
+        button = self.scan_button
+        if new_state is ScanningState.IDLE:
+            button.SetLabel(self.text_begin_scan)
+            button.Enable()
+        if new_state is ScanningState.RUNNING:
+            button.SetLabel("Cancel")
+        if new_state is ScanningState.CANCELLING:
+            button.SetLabel("Cancelling...")
+            button.Disable()
 
     def start_scan(self):
         if self._scan_thread is None:
-            logger.info("Starting log scan")
             paths = self.get_paths()
             if paths is None:
+                logger.error("No logs path is specified!")
                 return
+            logger.info("Starting log scan")
             self._scan_thread = PlaytimeCounterThread(self, paths)
             self._scan_thread.start()
+            self.update_scanning_state(ScanningState.RUNNING)
 
     def stop_scan(self):
         if self._scan_thread is not None and not self._scan_thread.stopped():
             logger.info("Cancelling log scan")
+            self.update_scanning_state(ScanningState.CANCELLING)
             self._scan_thread.stop()
 
     def get_paths(self) -> Optional[List[Path]]:
