@@ -403,16 +403,24 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             return
 
         def month_to_int(date: dt.date) -> int:
-            """Get the month number counting from year 0 month 0"""
+            """
+            Get the sequential month number starting at year 0
+            (0000-01-01 -> 0)
+            """
             return date.year * 12 + (date.month - 1)
 
-        def int_to_month(month: int) -> dt.date:
-            return dt.date(year=month//12, month=(month%12)+1, day=1)
+        def int_to_month(month_int: int) -> dt.date:
+            """
+            Get the date for this month number starting at year 0
+            (0 -> 0000-01-01)
+            """
+            return dt.date(year=month_int // 12, month=(month_int % 12) + 1,
+                           day=1)
 
-        def add_month(month: Union[dt.date, int]):
-            if isinstance(month, int):
-                month = int_to_month(month)
-            months.append(month.strftime('%Y-%m'))
+        def add_month(new_month: Union[dt.date, int]):
+            if isinstance(new_month, int):
+                new_month = int_to_month(new_month)
+            months.append(new_month.strftime('%Y-%m'))
 
         months: List[str] = []
         times: List[dt.timedelta] = []
@@ -500,4 +508,3 @@ class MinecraftLogsAnalyzerFrame(wx.Frame):
             logger.error(f"Failed to save file at {path}", exc_info=True)
         else:
             logger.info(f"Saved CSV file at {path}")
-
