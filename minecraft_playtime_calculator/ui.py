@@ -362,7 +362,7 @@ class MinecraftPlaytimeCalculatorFrame(wx.Frame):
         scan_mode = self.scan_mode
         if scan_mode == ScanMode.AUTOMATIC:
             default_logs_path = get_default_logs_path()
-            if not default_logs_path.exists():
+            if default_logs_path is None or not default_logs_path.exists():
                 logger.error(
                     "Could not automatically locate your .minecraft/logs folder"
                 )
