@@ -181,7 +181,7 @@ class MinecraftPlaytimeCalculatorFrame(wx.Frame):
             style=wx.RB_GROUP
         )
         scan_manual = wx.RadioButton(
-            panel_controls, label="Specify directories", name='manual'
+            panel_controls, label="Specify folders", name='manual'
         )
         scan_glob = wx.RadioButton(
             panel_controls, label="Specify files/globs", name='glob'
@@ -201,7 +201,7 @@ class MinecraftPlaytimeCalculatorFrame(wx.Frame):
 
         label = wx.StaticText(
             panel_path,
-            label="Enter directories / files / globs to scan\n"
+            label="Enter folders / files / globs to scan\n"
                   "(separate multiple with | )"
         )
         label.Wrap(panel_controls.Size[0])
@@ -380,7 +380,7 @@ class MinecraftPlaytimeCalculatorFrame(wx.Frame):
                 path = Path(path.strip(' '))
                 if not path.exists():
                     logger.error(
-                        f"The specified directory does not exist: {path}"
+                        f"The specified folder does not exist: {path}"
                     )
                     return
                 paths.append(path)
