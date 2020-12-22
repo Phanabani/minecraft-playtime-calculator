@@ -2,7 +2,7 @@
 
 A cross-platform tool to calculate your play time in Minecraft.
 
-[Application interface](assets/img/application_gui.png)
+![Application interface](assets/img/application_gui.png)
 
 ## Table of Contents
 
