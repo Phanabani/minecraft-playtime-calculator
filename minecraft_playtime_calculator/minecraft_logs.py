@@ -46,14 +46,14 @@ def get_default_logs_path() -> Optional[Path]:
         return path
 
     if platform == 'darwin':
-        path = Path('~/Library/Application Support/minecraft/logs')
+        path = Path.home() / 'Library/Application Support/minecraft/logs'
         if not path.exists():
             logger.error(error_msg)
             return
         return path
 
     if platform == 'linux':
-        path = Path('~/.minecraft/logs')
+        path = Path.home() / '.minecraft/logs'
         if not path.exists():
             logger.error(error_msg)
             return
