@@ -10,6 +10,7 @@ A cross-platform tool to calculate your play time in Minecraft.
     - [Windows](#windows)
     - [Mac / Linux](#mac--linux)
 - [Usage](#usage)
+- [Developers](#developers)
 - [License](#license)
 
 ## Running the program
@@ -92,6 +93,25 @@ You could also add the main Minecraft folder to the search:
 ```
 C:\Users\MyUsername\AppData\Roaming\.minecraft\logs\*.log* | C:\Users\MyUsername\Twitch\Minecraft\Instances\**\*.log*
 ```
+
+## Developers
+
+### Building
+
+Pyinstaller can be used to build a binary of this app. Only tested on Windows,
+but should hopefully work on other platforms.
+
+```shell script
+# Unix
+source venv/bin/activate
+# Windows
+venv\Scripts\activate.bat
+
+python -m pip install pyinstaller
+pyinstaller --clean -p venv\Lib\site-packages -p minecraft_playtime_calculator --windowed --onefile -n minecraft_playtime_calculator --icon assets/img/icon.ico -y main.py
+```
+
+Binary will be output in `./dist`.
 
 ## License
 
