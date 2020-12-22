@@ -253,10 +253,11 @@ class MinecraftPlaytimeCalculatorFrame(wx.Frame):
         sizer_main.AddSpacer(self.margin_main)
 
         self.log_window = log = wx.TextCtrl(
-            panel_main, style=wx.TE_MULTILINE | wx.TE_READONLY
+            panel_main, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH
         )
         log.SetBackgroundColour(element_color)
         log.SetForegroundColour(fg)
+        log.SetDefaultStyle(wx.TextAttr(fg))
         log.SetFont(log_font)
         sizer_main.Add(log, 1, wx.EXPAND | wx.ALL)
 
