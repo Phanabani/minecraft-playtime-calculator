@@ -23,6 +23,13 @@ time_pattern = re.compile(
 )
 
 
+def get_file_creation_time(file: Path) -> dt.datetime:
+    # On Unix, this is "the time of most recent metadata change"
+    # Not sure what that really entails... there aren't any other options
+    creation_time_sec = file.stat().st_ctime_ns // 1_000_000_000
+    return dt.datetime.fromtimestamp(creation_time_sec)
+
+
 def get_default_logs_path() -> Optional[Path]:
     platform = sys.platform
     error_msg = (
@@ -99,6 +106,11 @@ def iter_logs(dir_or_file: Union[str, Path]) -> Generator[Tuple[Path, dt.date]]:
         if date is None:
             continue
         yield file, date
+
+    latest = dir_or_file / 'latest.log'
+    if latest.exists():
+        date = get_file_creation_time(latest).date()
+        yield latest, date
 
 
 def open_log(file: Path) -> TextIO:
