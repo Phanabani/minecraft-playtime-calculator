@@ -1,3 +1,4 @@
+#!/bin/bash
 if [[ -e venv/bin/activate ]]; then
   source venv/bin/activate
   python main.py

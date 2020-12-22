@@ -1,3 +1,4 @@
+#!/bin/bash
 if [[ -d venv ]]; then
   echo "It looks like setup has already been run. You should be good to go!"
 else
