@@ -464,7 +464,7 @@ class MinecraftPlaytimeCalculatorFrame(wx.Frame):
 
             ax.bar(self.graph_months, self.graph_times, color=self.graph_color)
 
-            plt.setp(ax.xaxis.get_majorticklabels(), rotation=70)
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=90)
 
             ax.set_xlabel("Months")
             ax.set_ylabel("Hours")
